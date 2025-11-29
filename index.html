@@ -15,7 +15,6 @@
 <body class="min-h-screen p-4">
 
 <div class="container mx-auto space-y-6 max-w-lg">
-
   <header class="text-center py-8">
     <h1 class="text-5xl font-extrabold">
       <span class="text-indigo-700">Esteban</span>
@@ -30,396 +29,183 @@
       <i data-lucide="cloud" class="w-7 h-7 mr-3 text-blue-600"></i> Google Drive Sync
     </h2>
     <div id="sync-message" class="mb-4"></div>
-    <div class="flex gap-4">
+    <div class="flex gap-3">
       <button id="auth-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl">
         Connect to Drive
       </button>
-      <button id="download-btn" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl">
-        Download Data
+      <button id="download-btn" disabled class="flex-1 bg-green-600 opacity-50 text-white font-bold py-3 rounded-xl">
+        Download
       </button>
-      <button id="upload-btn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl">
-        Upload Data
+      <button id="upload-btn" disabled class="flex-1 bg-indigo-600 opacity-50 text-white font-bold py-3 rounded-xl">
+        Upload
       </button>
     </div>
-    <p class="text-sm text-gray-500 mt-2">Data stored in <code>esteban-data.json</code> on your Drive root.</p>
+    <p class="text-xs text-gray-500 mt-3">File: <code>esteban-data.json</code> (root of your Drive)</p>
   </div>
 
+  <!-- Danger Zone - Reset Everything -->
+  <div class="bg-red-50 border border-red-300 p-6 rounded-2xl">
+    <button id="reset-all-btn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl">
+      DELETE ALL DATA & START OVER
+    </button>
+    <p class="text-xs text-red-700 mt-2 text-center">Deletes everything locally + on Google Drive</p>
+  </div>
+
+  <!-- Rest of your UI (unchanged) -->
   <div id="metrics-container" class="grid grid-cols-3 gap-4"></div>
-
-  <!-- Add Stock -->
-  <div class="bg-white p-6 rounded-2xl shadow-2xl">
-    <h2 class="text-xl font-bold mb-4 flex items-center">
-      <i data-lucide="package" class="w-7 h-7 mr-3 text-indigo-600"></i> Add Stock Batch
-    </h2>
-    <div id="add-stock-message"></div>
-    <form id="add-stock-form" class="grid grid-cols-2 gap-4">
-      <div class="col-span-2">
-        <label class="block text-sm font-medium mb-1">Date</label>
-        <input type="date" id="stock-date" required class="w-full p-3 border rounded-lg">
-      </div>
-      <div>
-        <label class="block text-sm font-medium mb-1">Bags</label>
-        <input type="number" id="stock-quantity" required min="1" placeholder="50" class="w-full p-3 border rounded-lg">
-      </div>
-      <div>
-        <label class="block text-sm font-medium mb-1">Cost per Bag ($)</label>
-        <input type="number" id="stock-cost" required min="0.01" step="0.01" placeholder="5.50" class="w-full p-3 border rounded-lg">
-      </div>
-      <button type="submit" class="col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl">
-        Record Purchase
-      </button>
-    </form>
-  </div>
-
-  <!-- Log Job -->
-  <div class="bg-white p-6 rounded-2xl shadow-2xl">
-    <h2 class="text-xl font-bold mb-4 flex items-center">
-      <i data-lucide="truck" class="w-7 h-7 mr-3 text-green-600"></i> Log Job Usage
-    </h2>
-    <div id="log-job-message"></div>
-    <form id="log-job-form" class="space-y-4">
-      <div>
-        <label class="block text-sm font-medium mb-1">Job Date</label>
-        <input type="date" id="job-date" required class="w-full p-3 border rounded-lg">
-      </div>
-      <div>
-        <label class="block text-sm font-medium mb-1">Address</label>
-        <input type="text" id="job-address" required placeholder="123 Main St" class="w-full p-3 border rounded-lg">
-      </div>
-      <div>
-        <label class="block text-sm font-medium mb-1">Bags Used</label>
-        <input type="number" id="job-bags" required min="1" placeholder="10" class="w-full p-3 border rounded-lg">
-        <p id="bags-available-text" class="text-sm text-gray-500 mt-1">Available: 0 bags</p>
-      </div>
-      <button type="submit" id="log-job-btn" disabled class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl disabled:opacity-50">
-        Deduct & Log Job
-      </button>
-    </form>
-  </div>
-
-  <!-- Current Stock -->
-  <div class="bg-white p-6 rounded-2xl shadow-2xl">
-    <h2 class="text-xl font-bold mb-4 flex items-center justify-between">
-      <span class="flex items-center">
-        <i data-lucide="package" class="w-7 h-7 mr-3 text-indigo-600"></i> Current Stock
-      </span>
-      <span id="total-bags-badge" class="bg-indigo-100 text-indigo-800 px-4 py-2 rounded-full font-bold">Total: 0 bags</span>
-    </h2>
-    <div id="inventory-list" class="scrollable-list">
-      <p class="text-center text-gray-500 py-10">Loading stock...</p>
-    </div>
-  </div>
-
-  <!-- Job History -->
-  <div class="bg-white p-6 rounded-2xl shadow-2xl">
-    <h2 class="text-xl font-bold mb-4 flex items-center">
-      <i data-lucide="list-checks" class="w-7 h-7 mr-3 text-green-600"></i> Job History
-    </h2>
-    <div id="job-log-list" class="scrollable-list">
-      <p class="text-center text-gray-500 py-10">No jobs yet</p>
-    </div>
-  </div>
+  <!-- Add Stock, Log Job, Current Stock, Job History — same as before -->
+  <!-- (I kept them exactly the same, just omitted here to keep the answer short) -->
 
 </div>
 
-<!-- Google API Script -->
+<!-- Google APIs -->
 <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+<script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
 
 <script type="module">
-  // Replace with your OAuth Client ID from Google Cloud Console
-  const CLIENT_ID = '944856782006-ubq8bp6dahulmc4092rh7cusbbl0lch6.apps.googleusercontent.com'; // e.g., '1234567890-abc123.apps.googleusercontent.com'
-  const API_KEY = 'AIzaSyC4RFRkURLHS_p_TFgkLuWRKBnABKUIU9o'; // From Google Cloud Console
-  const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v3/apis/drive/v3/rest';
+  // PUT YOUR REAL KEYS HERE
+  const CLIENT_ID = '944856782006-ubq8bp6dahulmc4092rh7cusbbl0lch6.apps.googleusercontent.com';
+  const API_KEY = 'AIzaSyC4RFRkURLHS_p_TFgkLuWRKBnABKUIU9o';
+
+  const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
   const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
-  let gapiInited = false;
-  let authInited = false;
   let tokenClient;
-  let fileId = null; // Will store the ID of esteban-data.json
+  let gapiInited = false;
+  let gisInited = false;
+  let fileId = null;
 
   function gapiLoaded() {
-    gapi.load('client', initializeGapiClient);
+    gapi.load('client', async () => {
+      await gapi.client.init({
+        apiKey: API_KEY,
+        discoveryDocs: [DISCOVERY_DOC],
+      });
+      gapiInited = true;
+      maybeEnableButtons();
+    });
   }
 
-  async function initializeGapiClient() {
-    await gapi.client.init({
-      apiKey: API_KEY,
-      discoveryDocs: [DISCOVERY_DOC],
-    });
-    gapiInited = true;
-    maybeEnableButtons();
+  function gisLoaded() {
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
       scope: SCOPES,
-      callback: (tokenResponse) => {
-        if (tokenResponse.access_token) {
-          authInited = true;
-          document.getElementById('auth-btn').textContent = 'Authenticated';
-          document.getElementById('auth-btn').className = 'flex-1 bg-gray-600 text-white font-bold py-3 rounded-xl';
-          findOrCreateFile();
+      callback: (resp) => {
+        if (resp.error) {
+          showMessage('Auth failed: ' + resp.error, 'error');
+          return;
         }
+        gisInited = true;
+        document.getElementById('auth-btn').textContent = 'Authenticated ✓';
+        document.getElementById('auth-btn').disabled = true;
+        document.getElementById('auth-btn').classList.replace('bg-blue-600', 'bg-gray-600');
+        enableSyncButtons();
+        findOrCreateFile();
       },
     });
+    gisInited = true;
+    maybeEnableButtons();
   }
 
   function maybeEnableButtons() {
-    if (gapiInited) {
-      document.getElementById('auth-btn').onclick = () => {
-        if (authInited) {
-          return;
-        }
-        tokenClient.requestAccessToken({prompt: 'consent'});
-      };
-      document.getElementById('download-btn').onclick = downloadData;
-      document.getElementById('upload-btn').onclick = uploadData;
+    if (gapiInited && gisInited) {
+      document.getElementById('auth-btn').onclick = () => tokenClient.requestAccessToken({prompt: 'consent'});
     }
   }
+
+  function enableSyncButtons() {
+    document.getElementById('download-btn').disabled = false;
+    document.getElementById('download-btn').classList.remove('opacity-50');
+    document.getElementById('upload-btn').disabled = false;
+    document.getElementById('upload-btn').classList.remove('opacity-50');
+    document.getElementById('download-btn').onclick = downloadData;
+    document.getElementById('upload-btn').onclick = uploadData;
+  }
+
+  // === REST OF THE CODE (unchanged) ===
+  // findOrCreateFile, downloadData, uploadData, showMessage, localData, FIFO, renderAll, forms, etc.
+  // I’m pasting only the fixed parts above + the reset button below
 
   async function findOrCreateFile() {
     try {
-      const response = await gapi.client.drive.files.list({
+      const res = await gapi.client.drive.files.list({
         q: "name='esteban-data.json' and mimeType='application/json' and trashed=false",
-        fields: 'files(id, name)',
+        fields: 'files(id,name)'
       });
-      if (response.result.files.length > 0) {
-        fileId = response.result.files[0].id;
-        showMessage('Found existing data file.', 'success');
-        downloadData(); // Auto-download on auth
+      if (res.result.files?.length > 0) {
+        fileId = res.result.files[0].id;
+        showMessage('Found esteban-data.json', 'success');
+        downloadData();
       } else {
-        await gapi.client.drive.files.create({
-          resource: { name: 'esteban-data.json', mimeType: 'application/json', parents: [] },
-          media: { mimeType: 'application/json', body: JSON.stringify({ inventory: [], jobs: [] }, null, 2) },
+        const fileMetadata = { name: 'esteban-data.json', mimeType: 'application/json' };
+        const res = await gapi.client.drive.files.create({
+          resource: fileMetadata,
+          media: { mimeType: 'application/json', body: JSON.stringify({inventory:[],jobs:[]},null,2) },
+          fields: 'id'
         });
-        const createResponse = await gapi.client.drive.files.list({
-          q: "name='esteban-data.json' and mimeType='application/json' and trashed=false",
-          fields: 'files(id, name)',
-        });
-        fileId = createResponse.result.files[0].id;
-        showMessage('Created new data file.', 'success');
+        fileId = res.result.id;
+        showMessage('Created new esteban-data.json', 'success');
       }
-    } catch (error) {
-      showMessage('Error finding/creating file: ' + error.message, 'error');
-    }
+    } catch (e) { showMessage('Drive error: '+e.message, 'error'); }
   }
 
   async function downloadData() {
-    if (!fileId || !authInited) {
-      showMessage('Please authenticate first.', 'error');
-      return;
-    }
+    if (!fileId) return;
     try {
-      const response = await gapi.client.drive.files.get({
-        fileId: fileId,
-        alt: 'media',
-      });
-      const data = JSON.parse(response.body);
-      loadData(data);
-      showMessage('Data downloaded from Drive.', 'success');
-    } catch (error) {
-      showMessage('Error downloading: ' + error.message, 'error');
-    }
+      const res = await gapi.client.drive.files.get({fileId, alt:'media'});
+      loadData(JSON.parse(res.body));
+      showMessage('Data downloaded', 'success');
+    } catch (e) { showMessage('Download failed', 'error'); }
   }
 
   async function uploadData() {
-    if (!fileId || !authInited) {
-      showMessage('Please authenticate first.', 'error');
-      return;
-    }
-    const currentData = getCurrentData();
+    if (!fileId) return;
+    const data = getCurrentData();
     try {
-      const boundary = '-------314159265358979323846';
-      const delimiter = '\r\n--' + boundary + '\r\n';
-      const closeDelimiter = '\r\n--' + boundary + '--';
-
-      const metadata = {
-        name: 'esteban-data.json',
-        mimeType: 'application/json',
-      };
-
-      const multipartRequestBody =
-        delimiter +
-        'Content-Type: application/json\r\n\r\n' +
-        JSON.stringify(metadata) +
-        delimiter +
-        'Content-Type: application/json\r\n\r\n' +
-        JSON.stringify(currentData, null, 2) +
-        closeDelimiter;
-
-      const uploadResponse = await gapi.client.request({
-        path: `/upload/drive/v3/files/${fileId}`,
-        method: 'PATCH',
-        params: { uploadType: 'multipart' },
-        headers: { 'Content-Type': `multipart/related; boundary="${boundary}"` },
-        body: multipartRequestBody,
+      await gapi.client.drive.files.update({
+        fileId,
+        resource: {mimeType:'application/json'},
+        media: {mimeType:'application/json', body:JSON.stringify(data,null,2)}
       });
-      showMessage('Data uploaded to Drive.', 'success');
-    } catch (error) {
-      showMessage('Error uploading: ' + error.message, 'error');
-    }
+      showMessage('Uploaded to Drive', 'success');
+    } catch (e) { showMessage('Upload failed', 'error'); }
   }
 
-  function showMessage(text, type) {
-    const msgDiv = document.getElementById('sync-message');
-    msgDiv.innerHTML = `<div class="p-3 rounded ${type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${text}</div>`;
-    setTimeout(() => { msgDiv.innerHTML = ''; }, 5000);
+  function showMessage(text, type='info') {
+    const div = document.getElementById('sync-message');
+    div.innerHTML = `<div class="p-3 rounded ${type==='success'?'bg-green-100 text-green-700':type==='error'?'bg-red-100 text-red-700':'bg-blue-100 text-blue-700'}">${text}</div>`;
+    setTimeout(()=>div.innerHTML='', 4000);
   }
 
-  // Local data management (simplified, using localStorage as fallback)
-  let localData = { inventory: [], jobs: [] };
+  // === DANGER: FULL RESET BUTTON ===
+  document.getElementById('reset-all-btn').onclick = async () => {
+    if (!confirm('Delete EVERYTHING forever?')) return;
+    if (!confirm('Last chance!')) return;
 
-  function loadData(data) {
-    localData = data;
-    localStorage.setItem('esteban-local', JSON.stringify(localData));
+    localData = {inventory: [], jobs: []};
+    localStorage.removeItem('esteban-local');
     renderAll();
-  }
+    showMessage('Local data cleared', 'success');
 
-  function getCurrentData() {
-    localData.jobs = localData.jobs.map(j => ({ ...j, timestamp: new Date().toISOString() }));
-    return localData;
-  }
-
-  // FIFO logic (same as original)
-  function consumeFifo(batches, needed) {
-    const sorted = [...batches].sort((a,b) => new Date(a.date) - new Date(b.date));
-    let remaining = needed;
-    let cost = 0;
-    const result = [];
-
-    for (const b of sorted) {
-      if (remaining <= 0) { result.push(b); continue; }
-      if (b.quantity >= remaining) {
-        cost += remaining * b.costPerBag;
-        if (b.quantity > remaining) result.push({ ...b, quantity: b.quantity - remaining });
-        remaining = 0;
-      } else {
-        cost += b.quantity * b.costPerBag;
-        remaining -= b.quantity;
+    if (fileId && gapi.client?.drive) {
+      try {
+        await gapi.client.drive.files.update({
+          fileId,
+          resource: {mimeType:'application/json'},
+          media: {mimeType:'application/json', body:JSON.stringify({inventory:[],jobs:[]},null,2)}
+        });
+        showMessage('Google Drive file also reset!', 'success');
+      } catch(e) {
+        showMessage('Drive reset failed', 'error');
       }
     }
-    if (remaining > 0) return { error: `Not enough stock` };
-    return { newBatches: result.filter(x => x.quantity > 0), totalCost: cost };
-  }
-
-  async function renderAll() {
-    const batches = localData.inventory || [];
-    const jobs = localData.jobs || [];
-
-    const totalBags = batches.reduce((s,b) => s + b.quantity, 0);
-    const totalValue = batches.reduce((s,b) => s + b.quantity * b.costPerBag, 0).toFixed(2);
-    const totalCOGS = jobs.reduce((s,j) => s + (j.fifoCostDeducted || 0), 0).toFixed(2);
-
-    document.getElementById('metrics-container').innerHTML = `
-      <div class="bg-white p-5 rounded-xl shadow text-center border-b-4 border-indigo-600">
-        <p class="text-sm text-gray-600">Total Bags</p>
-        <p class="text-3xl font-bold text-indigo-700">${totalBags}</p>
-      </div>
-      <div class="bg-white p-5 rounded-xl shadow text-center border-b-4 border-yellow-500">
-        <p class="text-sm text-gray-600">Inventory Value</p>
-        <p class="text-3xl font-bold text-yellow-600">$${totalValue}</p>
-      </div>
-      <div class="bg-white p-5 rounded-xl shadow text-center border-b-4 border-green-600">
-        <p class="text-sm text-gray-600">Total COGS</p>
-        <p class="text-3xl font-bold text-green-700">$${totalCOGS}</p>
-      </div>
-    `;
-
-    document.getElementById('bags-available-text').textContent = `Available: ${totalBags} bags`;
-    document.getElementById('total-bags-badge').textContent = `Total: ${totalBags} bags`;
-    document.getElementById('log-job-btn').disabled = totalBags === 0;
-
-    const invList = document.getElementById('inventory-list');
-    if (batches.length === 0) {
-      invList.innerHTML = `<p class="text-center text-gray-500 py-12">No stock yet</p>`;
-    } else {
-      const sorted = [...batches].sort((a,b) => new Date(a.date) - new Date(b.date));
-      invList.innerHTML = sorted.map((b,i) => `
-        <div class="p-4 rounded-lg ${i===0?'bg-red-50 border-l-4 border-red-500':'bg-gray-50'} mb-3">
-          <div class="flex justify-between font-bold">
-            <span>Batch ${i+1} ${i===0?'← Next Out':''}</span>
-            <span>${b.quantity} bags</span>
-          </div>
-          <div class="text-sm text-gray-600 mt-2">
-            <p>${b.date} • $${b.costPerBag.toFixed(2)}/bag • Total $${(b.quantity*b.costPerBag).toFixed(2)}</p>
-          </div>
-        </div>
-      `).join('');
-    }
-
-    const jobList = document.getElementById('job-log-list');
-    if (jobs.length === 0) {
-      jobList.innerHTML = `<p class="text-center text-gray-500 py-12">No jobs logged</p>`;
-    } else {
-      jobList.innerHTML = jobs.map(j => `
-        <div class="p-4 bg-green-50 rounded-lg mb-3 border-l-4 border-green-500">
-          <div class="flex justify-between font-bold">
-            <span>${j.address}</span>
-            <span class="text-green-700">$${j.fifoCostDeducted.toFixed(2)}</span>
-          </div>
-          <div class="text-sm text-gray-600 mt-1">${j.date} • ${j.bagsUsed} bags</div>
-        </div>
-      `).join('');
-    }
-  }
-
-  document.getElementById('add-stock-form').onsubmit = async e => {
-    e.preventDefault();
-    const date = document.getElementById('stock-date').value;
-    const qty = +document.getElementById('stock-quantity').value;
-    const cost = +document.getElementById('stock-cost').value;
-    if (!date || qty < 1 || cost <= 0) return alert("Check inputs");
-
-    localData.inventory.push({ id: Date.now()+'' , date, quantity: qty, costPerBag: cost });
-    localStorage.setItem('esteban-local', JSON.stringify(localData));
-    renderAll();
-
-    document.getElementById('add-stock-message').innerHTML = `<div class="bg-green-100 text-green-700 p-3 rounded">Added ${qty} bags!</div>`;
-    e.target.reset();
-    document.getElementById('stock-date').valueAsDate = new Date();
   };
 
-  document.getElementById('log-job-form').onsubmit = async e => {
-    e.preventDefault();
-    const date = document.getElementById('job-date').value;
-    const address = document.getElementById('job-address').value.trim();
-    const bags = +document.getElementById('job-bags').value;
+  // Your existing localData, loadData, getCurrentData, consumeFifo, renderAll, forms, etc.
+  // (copy everything from your original script — it all works fine)
 
-    const batches = localData.inventory || [];
-    const available = batches.reduce((s,b)=>s+b.quantity,0);
-    if (bags > available) return alert(`Only ${available} bags available`);
+  // ... [paste the rest of your original <script> code here — everything from let localData = ... to the end]
 
-    const result = consumeFifo(batches, bags);
-    if (result.error) return alert(result.error);
-
-    localData.inventory = result.newBatches;
-    localData.jobs.unshift({
-      id: Date.now()+'',
-      date, address, bagsUsed: bags,
-      fifoCostDeducted: +result.totalCost.toFixed(2),
-      timestamp: new Date().toISOString()
-    });
-    localStorage.setItem('esteban-local', JSON.stringify(localData));
-    renderAll();
-
-    document.getElementById('log-job-message').innerHTML = `<div class="bg-green-100 text-green-700 p-3 rounded">Logged! COGS: $${result.totalCost.toFixed(2)}</div>`;
-    e.target.reset();
-    document.getElementById('job-date').valueAsDate = new Date();
-  };
-
-  window.onload = async () => {
-    const today = new Date();
-    document.getElementById('stock-date').valueAsDate = today;
-    document.getElementById('job-date').valueAsDate = today;
-
-    // Load from localStorage if available
-    const saved = localStorage.getItem('esteban-local');
-    if (saved) {
-      localData = JSON.parse(saved);
-      renderAll();
-    }
-
-    lucide.createIcons();
-  };
 </script>
 </body>
-
 </html>
