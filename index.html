@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Esteban INSULATION FIFO Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; background: linear-gradient(to bottom, #eef2ff, #e0e7ff); min-height: 100vh; }
+    .container { max-width: 560px; }
+    .scrollable { max-height: 400px; overflow-y: auto; }
+    .batch-card:hover { transform: translateY(-2px); transition: all 0.2s; }
+  </style>
+</head>
+<body class="p-4 pb-20">
+
+<div class="container mx-auto space-y-6">
+
+  <header class="text-center py-8 bg-white rounded-3xl shadow-xl shadow-2xl">
+    <h1 class="text-5xl font-extrabold">
+      <span class="text-indigo-700">Esteban</span>
+      <span class="text-red-600 block text-4xl font-bold tracking-widest uppercase mt-2">INSULATION</span>
+    </h1>
+    <p class="text-gray-600 mt-3 text-lg">FIFO Tracker • Auto Sync • Edit & Delete • Mobile Ready</p>
+  </header>
+
+  <!-- Sync Status -->
+  <div class="bg-white p-5 rounded-2xl shadow-xl text-center">
+    <div class="flex items-center justify-center gap-3">
+      <i data-lucide="cloud" class="w-8 h-8 text-blue-600"></i>
+      <span id="sync-status" class="font-bold text-lg">Not connected</span>
+    </div>
+    <div class="mt-3 flex gap-3">
+      <button id="auth-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl">Connect Google Drive</button>
+      <button id="manual-sync" class="px-5 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-xl">Sync Now</button>
+    </div>
+    <p class="text-xs text-gray-500 mt-3">Data auto-saved to <code>esteban-data.json</code></p>
+  </div>
+
+  <div id="sync-message"></div>
+  </div>
+
+  <!-- Metrics -->
+  <div id="metrics" class="grid grid-cols-3 gap-4"></div>
+
+  <!-- Add Stock -->
+  <div class="bg-white p-6 rounded-2xl shadow-2xl">
+    <h2 class="text-2xl font-bold mb-5 flex items-center">
+      <i data-lucide="package-plus" class="w-8 h-8 mr-3 text-indigo-600"></i> Add Purchase Batch
+    </h2>
+    <form id="add-form" class="grid grid-cols-2 gap-4">
+      <div class="col-span-2">
+        <label class="block text-sm font-medium mb-1">Purchase Date</label>
+        <input type="date" id="purchase-date" required class="w-full p-3 border rounded-lg"/>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Bags</label>
+        <input type="number" id="bags" required min="1" placeholder="50" class="w-full p-3 border rounded-lg"/>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Cost per Bag ($)</label>
+        <input type="number" id="cost" required min="0.01" step="0.01" placeholder="5.50" class="w-full p-3 border rounded-lg"/>
+      </div>
+      <button type="submit" class="col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl text-lg">
+        Add to Inventory
+      </button>
+    </form>
+  </div>
+
+  <!-- Log Job -->
+  <div class="bg-white p-6 rounded-2xl shadow-2xl">
+    <h2 class="text-2xl font-bold mb-5 flex items-center">
+      <i data-lucide="truck" class="w-8 h-8 mr-3 text-green-600"></i> Log Job Usage
+    </h2>
+    <form id="job-form" class="space-y-4">
+      <input type="date" id="job-date" required class="w-full p-3 border rounded-lg"/>
+      <input type="text" id="job-address" required placeholder="123 Main St, City" class="w-full p-3 border rounded-lg"/>
+      <div>
+        <input type="number" id="job-bags" required min="1" placeholder="Bags used" class="w-full p-3 border rounded-lg"/>
+        <p id="available-text" class="text-sm text-gray-600 mt-1">Available: 0 bags</p>
+      </div>
+      <button type="submit" id="job-btn" disabled class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl text-lg disabled:opacity-50">
+        Deduct Bags & Log Job
+      </button>
+    </form>
+  </div>
+
+  <!-- Current Stock -->
+  <div class="bg-white p-6 rounded-2xl shadow-2xl">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-2xl font-bold flex items-center">
+        <i data-lucide="warehouse" class="w-8 h-8 mr-3 text-indigo-600"></i> Current Stock
+      </h2>
+      <span id="total-badge" class="bg-indigo-100 text-indigo-800 px-4 py-2 rounded-full font-bold text-lg">0 bags</span>
+    </div>
+    <div id="stock-list" class="scrollable space-y-3"></div>
+  </div>
+
+  <!-- Purchase History -->
+  <div class="bg-white p-6 rounded-2xl shadow-2xl">
+    <h2 class="text-2xl font-bold mb-4 flex items-center">
+      <i data-lucide="shopping-cart" class="w-8 h-8 mr-3 text-purple-600"></i> Purchase History
+    </h2>
+    <div id="purchase-list" class="scrollable space-y-3">
+      <p class="text-center text-gray-500 py-8">No purchases yet</p>
+    </div>
+  </div>
+
+  <!-- Job History -->
+  <div class="bg-white p-6 rounded-2xl shadow-2xl">
+    <h2 class="text-2xl font-bold mb-4 flex items-center">
+      <i data-lucide="list-checks" class="w-8 h-8 mr-3 text-green-600"></i> Job History
+    </h2>
+    <div id="job-list" class="scrollable space-y-3">
+      <p class="text-center text-gray-500 py-8">No jobs logged</p>
+    </div>
+  </div>
+
+</div>
+
+<script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<script type="module">
+  const CLIENT_ID = '944856782006-ubq8bp6dahulmc4092rh7cusbbl0lch6.apps.googleusercontent.com';
+  const API_KEY = 'AIzaSyC4RFRkURLHS_p_TFgkLuWRKBnABKUIU90';
+  const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
+  const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+
+  let tokenClient, gapiInited = false, gisInited = false, fileId = null;
+  let data = { inventory: [], purchases: [], jobs: [] };
+  let isAuthenticated = false;
+
+  function gapiLoaded() {
+    gapi.load('client', async () => {
+      await gapi.client.init({ apiKey: API_KEY, discoveryDocs: [DISCOVERY_DOC] });
+      gapiInited = true;
+      maybeReady();
+    });
+  }
+
+  function gisLoaded() {
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      callback: (resp) => {
+        if (resp.access_token) {
+          isAuthenticated = true;
+          document.getElementById('auth-btn').textContent = 'Connected';
+          document.getElementById('auth-btn').disabled = true;
+          document.getElementById('sync-status').textContent = 'Connected to Drive';
+          document.getElementById('sync-status').className = 'text-green-600 font-bold';
+          findOrCreateFile();
+        }
+      },
+    });
+    gisInited = true;
+    maybeReady();
+  }
+
+  function maybeReady() {
+    if (gapiInited && gisInited) {
+      document.getElementById('auth-btn').onclick = () => tokenClient.requestAccessToken({prompt: 'consent'});
+      document.getElementById('manual-sync').onclick = syncBothWays;
+    }
+  }
+
+  window.gisLoaded = gisLoaded; // for inline script
+
+  async function findOrCreateFile() {
+    try {
+      let resp = await gapi.client.drive.files.list({
+        q: "name='esteban-data.json' and mimeType='application/json' and trashed=false",
+        fields: 'files(id,name)'
+      });
+      if (resp.result.files?.length > 0) {
+        fileId = resp.result.files[0].id;
+        await downloadFromDrive();
+      } else {
+        await createFile();
+      }
+    } catch (e) { showMsg('Drive error: ' + e.message, 'error'); }
+  }
+
+  async function createFile() {
+    const file = await gapi.client.drive.files.create({
+      resource: { name: 'esteban-data.json', mimeType: 'application/json' },
+      media: { mimeType: 'application/json', body: JSON.stringify(data, null, 2) }
+    });
+    fileId = file.result.id;
+    showMsg('New file created on Drive', 'success');
+  }
+
+  async function downloadFromDrive() {
+    try {
+      const resp = await gapi.client.drive.files.get({ fileId, alt: 'media' });
+      data = JSON.parse(resp.body);
+      localStorage.setItem('esteban-data', JSON.stringify(data));
+      render();
+      showMsg('Data loaded from Drive', 'success');
+    } catch (e) {
+      showMsg('Download failed: ' + e.message, 'error');
+    }
+  }
+
+  async function uploadToDrive() {
+    if (!fileId) return;
+    try {
+      const boundary = 'foo_bar_baz';
+      const delimiter = "\r\n--" + boundary + "\r\n";
+      const close = "\r\n--" + boundary + "--";
+      const body = delimiter +
+        'Content-Type: application/json\r\n\r\n' +
+        JSON.stringify({ name: 'esteban-data.json' }) +
+        delimiter +
+        'Content-Type: application/json\r\n\r\n' +
+        JSON.stringify(data, null, 2) +
+        close;
+
+      await gapi.client.request({
+        path: `/upload/drive/v3/files/${fileId}`,
+        method: 'PATCH',
+        params: { uploadType: 'multipart' },
+        headers: { 'Content-Type': `multipart/related; boundary="${boundary}"` },
+        body: body
+      });
+      showMsg('Auto-saved to Drive', 'success');
+    } catch (e) { showMsg('Upload failed: ' + e.message, 'error'); }
+  }
+
+  function syncBothWays() {
+    downloadFromDrive().then(uploadToDrive);
+  }
+
+  function showMsg(text, type = 'info') {
+    const el = document.getElementById('sync-message');
+    el.innerHTML = `<div class="mt-3 p-3 rounded-lg ${type==='success'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}">${text}</div>`;
+    setTimeout(() => el.innerHTML = '', 4000);
+  }
+
+  // FIFO consumption
+  function consumeFIFO(needed) {
+    let remaining = needed;
+    let cost = 0;
+    const newInv = [];
+
+    const sorted = [...data.inventory].sort((a,b) => new Date(a.date) - new Date(b.date));
+
+    for (const batch of sorted) {
+      if (remaining <= 0) { newInv.push(batch); continue; }
+      if (batch.qty >= remaining) {
+        cost += remaining * batch.cost;
+        if (batch.qty > remaining) newInv.push({ ...batch, qty: batch.qty - remaining });
+        remaining = 0;
+      } else {
+        cost += batch.qty * batch.cost;
+        remaining -= batch.qty;
+      }
+    }
+    return remaining > 0 ? null : { newInv, cost };
+  }
+
+  function render() {
+    const totalBags = data.inventory.reduce((s,b)=>s+b.qty,0);
+    const totalValue = data.inventory.reduce((s,b)=>s+b.qty*b.cost,0).toFixed(2);
+    const totalCOGS = data.jobs.reduce((s,j)=>s+(j.cogs||0),0).toFixed(2);
+
+    document.getElementById('metrics').innerHTML = `
+      <div class="bg-white p-5 rounded-xl shadow text-center border-b-4 border-indigo-600">
+        <p class="text-gray-600">Bags in Stock</p>
+        <p class="text-4xl font-bold text-indigo-700">${totalBags}</p>
+      </div>
+      <div class="bg-white p-5 rounded-xl shadow text-center border-b-4 border-amber-500">
+        <p class="text-gray-600">Inventory Value</p>
+        <p class="text-4xl font-bold text-amber-600">$${totalValue}</p>
+      </div>
+      <div class="bg-white p-5 rounded-xl shadow text-center border-b-4 border-green-600">
+        <p class="text-gray-600">Total COGS</p>
+        <p class="text-4xl font-bold text-green-700">$${totalCOGS}</p>
+      </div>
+    `;
+
+    document.getElementById('available-text').textContent = `Available: ${totalBags} bags`;
+    document.getElementById('total-badge').textContent = `${totalBags} bags`;
+    document.getElementById('job-btn').disabled = totalBags === 0;
+
+    // Stock list
+    const stockEl = document.getElementById('stock-list');
+    if (data.inventory.length === 0) {
+      stockEl.innerHTML = '<p class="text-center text-gray-500 py-8">No stock</p>';
+    } else {
+      const sorted = [...data.inventory].sort((a,b)=>new Date(a.date)-new Date(b.date));
+      stockEl.innerHTML = sorted.map((b,i) => `
+        <div class="batch-card p-4 rounded-lg ${i===0?'bg-red-50 border-red-400':'bg-gray-50'} border-l-4">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="font-bold">${b.qty} bags @ $${b.cost.toFixed(2)}/bag</p>
+              <p class="text-sm text-gray-600">${new Date(b.date).toLocaleDateString()} • $${(b.qty*b.cost).toFixed(2)}</p>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="editBatch('${b.id}')" class="text-blue-600 text-sm">Edit</button>
+              <button onclick="deleteBatch('${b.id}')" class="text-red-600 text-sm">Delete</button>
+            </div>
+          </div>
+          ${i===0?'<span class="text-xs bg-red-600 text-white px-2 py-1 rounded mt-2 inline-block rounded">Next Out (FIFO)</span>':''}
+        </div>
+      `).join('');
+    }
+
+    // Purchase history
+    const purchaseEl = document.getElementById('purchase-list');
+    if (data.purchases.length === 0) {
+      purchaseEl.innerHTML = '<p class="text-center text-gray-500 py-8">No purchases recorded</p>';
+    } else {
+      purchaseEl.innerHTML = data.purchases.slice().reverse().map(p => `
+        <div class="p-4 bg-purple-50 rounded-lg border-l-4 border-purple-500">
+          <div class="flex justify-between">
+            <div>
+              <p class="font-bold">${p.qty} bags @ $${p.cost.toFixed(2)}/bag</p>
+              <p class="text-sm text-gray-600">${new Date(p.date).toLocaleDateString()} • Total: $${(p.qty*p.cost).toFixed(2)}</p>
+            </div>
+            <button onclick="deletePurchase('${p.id}')" class="text-red-600 text-sm">Delete</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Job history
+    const jobEl = document.getElementById('job-list');
+    if (data.jobs.length === 0) {
+      jobEl.innerHTML = '<p class="text-center text-gray-500 py-8">No jobs</p>';
+    } else {
+      jobEl.innerHTML = data.jobs.slice().reverse().map(j => `
+        <div class="p-4 bg-green-50 rounded-lg border-l-4 border-green-500">
+          <div class="flex justify-between">
+            <div>
+              <p class="font-bold">${j.address}</p>
+              <p class="text-sm text-gray-600">${new Date(j.date).toLocaleDateString()} • ${j.bags} bags • COGS $${(j.cogs||0).toFixed(2)}</p>
+            </div>
+            <button onclick="deleteJob('${j.id}')" class="text-red-600 text-sm">Delete</button>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  // Forms
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('purchase-date').value = today;
+  document.getElementById('job-date').value = today;
+
+  document.getElementById('add-form').onsubmit = e => {
+    e.preventDefault();
+    const batch = {
+      id: Date.now().toString(),
+      date: document.getElementById('purchase-date').value,
+      qty: +document.getElementById('bags').value,
+      cost: +document.getElementById('cost').value
+    };
+    data.inventory.push(batch);
+    data.purchases.push({ ...batch }); // save to history
+    localStorage.setItem('esteban-data', JSON.stringify(data));
+    render();
+    uploadToDrive();
+    e.target.reset();
+    document.getElementById('purchase-date').value = today;
+  };
+
+  document.getElementById('job-form').onsubmit = e => {
+    e.preventDefault();
+    const bags = +document.getElementById('job-bags').value;
+    const result = consumeFIFO(bags);
+    if (!result) return alert('Not enough stock!');
+
+    data.inventory = result.newInv;
+    data.jobs.unshift({
+      id: Date.now().toString(),
+      date: document.getElementById('job-date').value,
+      address: document.getElementById('job-address').value,
+      bags,
+      cogs: +result.cost.toFixed(2)
+    });
+    localStorage.setItem('esteban-data', JSON.stringify(data));
+    render();
+    uploadToDrive();
+    e.target.reset();
+    document.getElementById('job-date').value = today;
+  };
+
+  window.editBatch = (id) => {
+    const b = data.inventory.find(x => x.id === id);
+    if (!b) return;
+    const qty = prompt('New quantity:', b.qty);
+    const cost = prompt('New cost per bag:', b.cost);
+    if (qty && cost) {
+      b.qty = +qty;
+      b.cost = +cost;
+      render();
+      uploadToDrive();
+    }
+  };
+
+  window.deleteBatch = (id) => {
+    if (confirm('Delete this batch from inventory?')) {
+      data.inventory = data.inventory.filter(x => x.id !== id);
+      render();
+      uploadToDrive();
+    }
+  };
+
+  window.deletePurchase = (id) => {
+    if (confirm('Delete from purchase history?')) {
+      data.purchases = data.purchases.filter(x => x.id !== id);
+      render();
+      uploadToDrive();
+    }
+  };
+
+  window.deleteJob = (id) => {
+    if (confirm('Delete this job? (Will NOT restore bags)')) {
+      data.jobs = data.jobs.filter(x => x.id !== id);
+      render();
+      uploadToDrive();
+    }
+  };
+
+  // Load local data on start
+  const saved = localStorage.getItem('esteban-data');
+  if (saved) {
+    try { data = JSON.parse(saved); } catch(e) {}
+  }
+  render();
+
+  lucide.createIcons();
+</script>
+</body>
+</html>
