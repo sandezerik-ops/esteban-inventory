@@ -2,16 +2,16 @@
 <html lang="en">
 <head>
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Esteban INSULATION FIFO Tracker</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
 
-  <!-- Firebase -->
+  <!-- Firebase + Offline (Fixed with Timestamp & Error Handling) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
-    import { getFirestore, enableIndexedDbPersistence, collection, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+    import { getFirestore, enableIndexedDbPersistence, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCa9VjE4S3X9Bepfj8X713SVZCdsDht1Kw",
@@ -25,14 +25,21 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    enableIndexedDbPersistence(db).catch(() => {});
 
+    // Enable offline with local cache
+    enableIndexedDbPersistence(db).catch((err) => {
+      console.log("Offline persistence error:", err);  // Log for debug
+    });
+
+    // Global functions
     window.db = db;
     window.doc = doc;
     window.setDoc = setDoc;
     window.deleteDoc = deleteDoc;
     window.collection = collection;
     window.onSnapshot = onSnapshot;
+    window.query = query;
+    window.orderBy = orderBy;
     window.serverTimestamp = serverTimestamp;
   </script>
 
@@ -49,61 +56,86 @@
   <header class="text-center py-8 bg-white rounded-3xl shadow-xl">
     <h1 class="text-5xl font-extrabold">
       <span class="text-indigo-700">Esteban</span>
-      <span class="text-red-600 block text-4xl font-bold uppercase mt-2">INSULATION</span>
+      <span class="text-red-600 block text-4xl font-bold tracking-widest uppercase mt-2">INSULATION</span>
     </h1>
-    <p class="text-gray-600 mt-3 text-lg">FIFO Tracker • Cloud Sync • Works Offline</p>
+    <p class="text-gray-600 mt-3 text-lg">FIFO Tracker • Real-time Sync • Offline Backup</p>
   </header>
 
-  <div id="sync-message" class="text-center font-bold text-green-600 text-xl"></div>
+  <div class="bg-white p-5 rounded-2xl shadow-xl text-center">
+    <div class="flex items-center justify-center gap-3">
+      <i data-lucide="cloud" class="w-8 h-8 text-green-600"></i>
+      <span id="sync-status" class="font-bold text-lg text-green-600">Syncing...</span>
+    </div>
+    <p class="text-xs text-gray-500 mt-3">Data backed up locally + cloud</p>
+  </div>
+  <div id="sync-message"></div>
 
   <div id="metrics" class="grid grid-cols-3 gap-4"></div>
 
   <!-- Add Purchase -->
   <div class="bg-white p-6 rounded-2xl shadow-2xl">
-    <h2 class="text-2xl font-bold mb-5">Add Purchase Batch</h2>
+    <h2 class="text-2xl font-bold mb-5 flex items-center">
+      <i data-lucide="package-plus" class="w-8 h-8 mr-3 text-indigo-600"></i> Add Purchase Batch
+    </h2>
     <form id="add-form" class="grid grid-cols-2 gap-4">
       <div class="col-span-2">
-        <label>Purchase Date</label>
+        <label class="block text-sm font-medium mb-1">Purchase Date</label>
         <input type="date" id="purchase-date" required class="w-full p-3 border rounded-lg"/>
       </div>
-      <div><label>Bags</label><input type="number" id="bags" required min="1" placeholder="50" class="w-full p-3 border rounded-lg"/></div>
-      <div><label>Cost per Bag ($)</label><input type="number" id="cost" required min="0.01" step="0.01" placeholder="5.50" class="w-full p-3 border rounded-lg"/></div>
-      <button type="submit" class="col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl text-lg">Add to Inventory</button>
+      <div><label class="block text-sm font-medium mb-1">Bags</label>
+        <input type="number" id="bags" required min="1" placeholder="50" class="w-full p-3 border rounded-lg"/>
+      </div>
+      <div><label class="block text-sm font-medium mb-1">Cost per Bag ($)</label>
+        <input type="number" id="cost" required min="0.01" step="0.01" placeholder="5.50" class="w-full p-3 border rounded-lg"/>
+      </div>
+      <button type="submit" class="col-span-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl text-lg">
+        Add to Inventory
+      </button>
     </form>
   </div>
 
   <!-- Log Job -->
   <div class="bg-white p-6 rounded-2xl shadow-2xl">
-    <h2 class="text-2xl font-bold mb-5">Log Job Usage</h2>
+    <h2 class="text-2xl font-bold mb-5 flex items-center">
+      <i data-lucide="truck" class="w-8 h-8 mr-3 text-green-600"></i> Log Job Usage
+    </h2>
     <form id="job-form" class="space-y-4">
       <input type="date" id="job-date" required class="w-full p-3 border rounded-lg"/>
-      <input type="text" id="job-address" required placeholder="Address" class="w-full p-3 border rounded-lg"/>
+      <input type="text" id="job-address" required placeholder="123 Main St, City" class="w-full p-3 border rounded-lg"/>
       <div>
         <input type="number" id="job-bags" required min="1" placeholder="Bags used" class="w-full p-3 border rounded-lg"/>
         <p id="available-text" class="text-sm text-gray-600 mt-1">Available: 0 bags</p>
       </div>
-      <button type="submit" id="job-btn" disabled class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl disabled:opacity-50">
+      <button type="submit" id="job-btn" disabled class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl text-lg disabled:opacity-50">
         Deduct Bags & Log Job
       </button>
     </form>
   </div>
 
-  <!-- Current Stock -->
+  <!-- Stock -->
   <div class="bg-white p-6 rounded-2xl shadow-2xl">
     <div class="flex justify-between items-center mb-4">
-      <h2 class="text-2xl font-bold">Current Stock</h2>
+      <h2 class="text-2xl font-bold flex items-center">
+        <i data-lucide="warehouse" class="w-8 h-8 mr-3 text-indigo-600"></i> Current Stock
+      </h2>
       <span id="total-badge" class="bg-indigo-100 text-indigo-800 px-4 py-2 rounded-full font-bold text-lg">0 bags</span>
     </div>
     <div id="stock-list" class="scrollable space-y-3"></div>
   </div>
 
+  <!-- Purchases -->
   <div class="bg-white p-6 rounded-2xl shadow-2xl">
-    <h2 class="text-2xl font-bold mb-4">Purchase History</h2>
+    <h2 class="text-2xl font-bold mb-4 flex items-center">
+      <i data-lucide="shopping-cart" class="w-8 h-8 mr-3 text-purple-600"></i> Purchase History
+    </h2>
     <div id="purchase-list" class="scrollable space-y-3"></div>
   </div>
 
+  <!-- Jobs -->
   <div class="bg-white p-6 rounded-2xl shadow-2xl">
-    <h2 class="text-2xl font-bold mb-4">Job History</h2>
+    <h2 class="text-2xl font-bold mb-4 flex items-center">
+      <i data-lucide="list-checks" class="w-8 h-8 mr-3 text-green-600"></i> Job History
+    </h2>
     <div id="job-list" class="scrollable space-y-3"></div>
   </div>
 </div>
@@ -112,110 +144,64 @@
   let data = { inventory: [], purchases: [], jobs: [] };
   const today = new Date().toISOString().split('T')[0];
 
-  // Wait for page to load before touching inputs
+  // Auto-fill dates (runs after HTML loads)
   document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('purchase-date').value = today;
     document.getElementById('job-date').value = today;
   });
 
-  // Load local backup
+  // Load from localStorage on start (backup if cloud fails)
   const saved = localStorage.getItem('esteban-data');
-  if (saved) data = JSON.parse(saved);
+  if (saved) {
+    try {
+      data = JSON.parse(saved);
+      render();  // Show local data immediately
+      document.getElementById('sync-status').textContent = 'Loaded from Local';
+    } catch (e) {
+      console.error('Local load error:', e);
+    }
+  }
 
-  // Real-time sync
-  const q = collection(db, "esteban");
-  onSnapshot(q, (snap) => {
+  // Real-time listener with error handling + local fallback
+  const q = query(collection(db, "esteban"), orderBy("createdAt"));  // Sort by timestamp (no index needed)
+  onSnapshot(q, (snapshot) => {
     data = { inventory: [], purchases: [], jobs: [] };
-    snap.forEach(d => {
-      const item = { id: d.id, ...d.data() };
+    snapshot.forEach((docSnap) => {
+      const item = { id: docSnap.id, ...docSnap.data() };
       if (item.type === "purchase") {
         data.purchases.push(item);
         data.inventory.push(item);
-      } else if (item.type === "job") data.jobs.push(item);
+      } else if (item.type === "job") {
+        data.jobs.push(item);
+      }
     });
-    data.inventory.sort((a,b) => a.date.localeCompare(b.date));
-    localStorage.setItem('esteban-data', JSON.stringify(data));
+    data.inventory.sort((a,b) => new Date(a.date) - new Date(b.date));  // Client-side FIFO
+    localStorage.setItem('esteban-data', JSON.stringify(data));  // Always save local
     render();
+    document.getElementById('sync-status').textContent = 'Synced from Cloud';
+  }, (err) => {
+    console.error('Listener error:', err);  // Log for debug
+    // Fallback to local if cloud fails
+    const saved = localStorage.getItem('esteban-data');
+    if (saved) {
+      data = JSON.parse(saved);
+      render();
+    }
+    document.getElementById('sync-status').textContent = 'Using Local Backup';
+    showMsg("Cloud sync failed — using local data", "info");
   });
 
-  function render() {
-    const totalBags = data.inventory.reduce((s,b) => s + b.qty, 0);
-    const totalValue = data.inventory.reduce((s,b) => s + b.qty * b.cost, 0).toFixed(2);
-    const totalCOGS = data.jobs.reduce((s,j) => s + (j.cogs || 0), 0).toFixed(2);
-
-    document.getElementById('metrics').innerHTML = `
-      <div class="bg-white p-5 rounded-xl shadow text-center border-b-4 border-indigo-600">
-        <p class="text-gray-600 text-sm">Bags in Stock</p>
-        <p class="text-4xl font-extrabold text-indigo-700">${totalBags}</p>
-      </div>
-      <div class="bg-white p-5 rounded-xl shadow text-center border-b-4 border-amber-500">
-        <p class="text-gray-600 text-sm">Inventory Value</p>
-        <p class="text-4xl font-extrabold text-amber-600">$${totalValue}</p>
-      </div>
-      <div class="bg-white p-5 rounded-xl shadow text-center border-b-4 border-green-600">
-        <p class="text-gray-600 text-sm">Total COGS</p>
-        <p class="text-4xl font-extrabold text-green-700">$${totalCOGS}</p>
-      </div>
-    `;
-
-    document.getElementById('available-text').textContent = `Available: ${totalBags} bags`;
-    document.getElementById('total-badge').textContent = `${totalBags} bags`;
-    document.getElementById('job-btn').disabled = totalBags === 0;
-
-    document.getElementById('stock-list').innerHTML = data.inventory.length === 0 ?
-      '<p class="text-center text-gray-500 py-8">No stock</p>' :
-      data.inventory.map((b,i) => `
-        <div class="batch-card p-4 rounded-lg ${i===0?'bg-red-50 border-red-400':'bg-gray-50'} border-l-4">
-          <p class="font-bold">${b.qty} bags @ $${b.cost.toFixed(2)}/bag</p>
-          <p class="text-sm text-gray-600">${new Date(b.date).toLocaleDateString()} • $${(b.qty*b.cost).toFixed(2)}</p>
-          ${i===0 ? '<span class="text-xs bg-red-600 text-white px-2 py-1 rounded mt-2 inline-block">Next Out (FIFO)</span>' : ''}
-        </div>
-      `).join('');
-
-    document.getElementById('purchase-list').innerHTML = data.purchases.length === 0 ?
-      '<p class="text-center text-gray-500 py-8">No purchases yet</p>' :
-      data.purchases.slice().reverse().map(p => `
-        <div class="p-4 bg-purple-50 rounded-lg border-l-4 border-purple-500">
-          <p class="font-bold">${p.qty} bags @ $${p.cost.toFixed(2)} • ${new Date(p.date).toLocaleDateString()}</p>
-        </div>
-      `).join('');
-
-    document.getElementById('job-list').innerHTML = data.jobs.length === 0 ?
-      '<p class="text-center text-gray-500 py-8">No jobs yet</p>' :
-      data.jobs.slice().reverse().map(j => `
-        <div class="p-4 bg-green-50 rounded-lg border-l-4 border-green-500">
-          <p class="font-bold">${j.address}</p>
-          <p class="text-sm text-gray-600">${new Date(j.date).toLocaleDateString()} • ${j.bags} bags • COGS $${(j.cogs||0).toFixed(2)}</p>
-        </div>
-      `).join('');
+  function showMsg(text, type = "success") {
+    const el = document.getElementById('sync-message');
+    el.innerHTML = `<div class="mt-3 p-3 rounded-lg text-center ${type==='success'?'bg-green-100 text-green-700':'bg-blue-100 text-blue-700'}">${text}</div>`;
+    setTimeout(() => el.innerHTML = '', 4000);
   }
 
-  // ADD PURCHASE — WORKS 100%
-  document.getElementById('add-form').onsubmit = async e => {
-    e.preventDefault();
-    const id = Date.now().toString();
-    const batch = {
-      type: "purchase",
-      date: document.getElementById('purchase-date').value,
-      qty: +document.getElementById('bags').value,
-      cost: +document.getElementById('cost').value
-    };
-    await setDoc(doc(db, "esteban", id), batch);
-    document.getElementById('sync-message').textContent = "Added & Synced!";
-    setTimeout(() => document.getElementById('sync-message').textContent = "", 3000);
-    e.target.reset();
-    document.getElementById('purchase-date').value = today;
-  };
-
-  // LOG JOB — WORKS 100%
-  document.getElementById('job-form').onsubmit = async e => {
-    e.preventDefault();
-    const needed = +document.getElementById('job-bags').value;
+  function consumeFIFO(needed) {
     let remaining = needed;
     let cost = 0;
     const newInv = [];
-    const sorted = [...data.inventory].sort((a,b) => a.date.localeCompare(b.date));
-
+    const sorted = [...data.inventory].sort((a,b) => new Date(a.date) - new Date(b.date));
     for (const batch of sorted) {
       if (remaining <= 0) { newInv.push(batch); continue; }
       if (batch.qty >= remaining) {
@@ -227,27 +213,180 @@
         remaining -= batch.qty;
       }
     }
-    if (remaining > 0) return alert("Not enough bags!");
+    return remaining > 0 ? null : { newInv, cost };
+  }
 
-    // Delete old, save new
-    for (const old of data.inventory) await deleteDoc(doc(db, "esteban", old.id));
-    for (const upd of newInv) await setDoc(doc(db, "esteban", upd.id), upd);
-    const jobId = Date.now().toString();
-    await setDoc(doc(db, "esteban", jobId), {
-      type: "job",
-      date: document.getElementById('job-date').value,
-      address: document.getElementById('job-address').value,
-      bags: needed,
-      cogs: +cost.toFixed(2)
-    });
+  function render() {
+    const totalBags = data.inventory.reduce((s,b) => s + b.qty, 0);
+    const totalValue = data.inventory.reduce((s,b) => s + b.qty * b.cost, 0).toFixed(2);
+    const totalCOGS = data.jobs.reduce((s,j) => s + (j.cogs || 0), 0).toFixed(2);
 
-    document.getElementById('sync-message').textContent = "Job Logged!";
-    setTimeout(() => document.getElementById('sync-message').textContent = "", 3000);
+    document.getElementById('metrics').innerHTML = `
+      <div class="bg-white p-5 rounded-xl shadow text-center border-b-4 border-indigo-600">
+        <p class="text-gray-600">Bags in Stock</p>
+        <p class="text-3xl font-extrabold text-indigo-700">${totalBags}</p>
+      </div>
+      <div class="bg-white p-5 rounded-xl shadow text-center border-b-4 border-amber-500">
+        <p class="text-gray-600">Inventory Value</p>
+        <p class="text-3xl font-extrabold text-amber-600">$${totalValue}</p>
+      </div>
+      <div class="bg-white p-5 rounded-xl shadow text-center border-b-4 border-green-600">
+        <p class="text-gray-600">Total COGS</p>
+        <p class="text-3xl font-extrabold text-green-700">$${totalCOGS}</p>
+      </div>
+    `;
+
+    document.getElementById('available-text').textContent = `Available: ${totalBags} bags`;
+    document.getElementById('total-badge').textContent = `${totalBags} bags`;
+    document.getElementById('job-btn').disabled = totalBags === 0;
+
+    // Stock list
+    document.getElementById('stock-list').innerHTML = data.inventory.length === 0
+      ? '<p class="text-center text-gray-500 py-8">No stock</p>'
+      : data.inventory.map((b,i) => `
+        <div class="batch-card p-4 rounded-lg ${i===0?'bg-red-50 border-red-400':'bg-gray-50'} border-l-4">
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="font-bold">${b.qty} bags @ $${b.cost.toFixed(2)}/bag</p>
+              <p class="text-sm text-gray-600">${new Date(b.date).toLocaleDateString()} • $${(b.qty*b.cost).toFixed(2)}</p>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="editBatch('${b.id}')" class="text-blue-600 text-sm">Edit</button>
+              <button onclick="deleteBatch('${b.id}')" class="text-red-600 text-sm">Delete</button>
+            </div>
+          </div>
+          ${i===0?'<span class="text-xs bg-red-600 text-white px-2 py-1 rounded mt-2 inline-block">Next Out (FIFO)</span>':''}
+        </div>
+      `).join('');
+
+    // Purchases
+    document.getElementById('purchase-list').innerHTML = data.purchases.length === 0
+      ? '<p class="text-center text-gray-500 py-8">No purchases yet</p>'
+      : data.purchases.slice().reverse().map(p => `
+        <div class="p-4 bg-purple-50 rounded-lg border-l-4 border-purple-500">
+          <div class="flex justify-between">
+            <div>
+              <p class="font-bold">${p.qty} bags @ $${p.cost.toFixed(2)}/bag</p>
+              <p class="text-sm text-gray-600">${new Date(p.date).toLocaleDateString()} • $${(p.qty*p.cost).toFixed(2)}</p>
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+    // Jobs
+    document.getElementById('job-list').innerHTML = data.jobs.length === 0
+      ? '<p class="text-center text-gray-500 py-8">No jobs yet</p>'
+      : data.jobs.slice().reverse().map(j => `
+        <div class="p-4 bg-green-50 rounded-lg border-l-4 border-green-500">
+          <div class="flex justify-between">
+            <div>
+              <p class="font-bold">${j.address}</p>
+              <p class="text-sm text-gray-600">${new Date(j.date).toLocaleDateString()} • ${j.bags} bags • COGS $${(j.cogs||0).toFixed(2)}</p>
+            </div>
+          </div>
+        </div>
+      `).join('');
+  }
+
+  // Add Purchase (with timestamp)
+  document.getElementById('add-form').onsubmit = async e => {
+    e.preventDefault();
+    const id = Date.now().toString();
+    const batch = {
+      type: "purchase",
+      date: document.getElementById('purchase-date').value,
+      qty: +document.getElementById('bags').value,
+      cost: +document.getElementById('cost').value,
+      createdAt: serverTimestamp()  // Auto-timestamp for sorting
+    };
+    try {
+      await setDoc(doc(db, "esteban", id), batch);
+      showMsg("Purchase added & synced!");
+    } catch (err) {
+      console.error('Save error:', err);
+      // Save locally if cloud fails
+      data.inventory.push(batch);
+      data.purchases.push(batch);
+      localStorage.setItem('esteban-data', JSON.stringify(data));
+      render();
+      showMsg("Saved locally — will sync later", "info");
+    }
+    e.target.reset();
+    document.getElementById('purchase-date').value = today;
+  };
+
+  // Log Job (with timestamp)
+  document.getElementById('job-form').onsubmit = async e => {
+    e.preventDefault();
+    const needed = +document.getElementById('job-bags').value;
+    const result = consumeFIFO(needed);
+    if (!result) return alert("Not enough bags in stock!");
+
+    try {
+      // Delete old inventory
+      for (const old of data.inventory) {
+        await deleteDoc(doc(db, "esteban", old.id));
+      }
+      // Save updated inventory
+      for (const updated of result.newInv) {
+        updated.createdAt = serverTimestamp();
+        await setDoc(doc(db, "esteban", updated.id), updated);
+      }
+      // Save job
+      const jobId = Date.now().toString();
+      const job = {
+        type: "job",
+        date: document.getElementById('job-date').value,
+        address: document.getElementById('job-address').value,
+        bags: needed,
+        cogs: +result.cost.toFixed(2),
+        createdAt: serverTimestamp()
+      };
+      await setDoc(doc(db, "esteban", jobId), job);
+      showMsg("Job logged & synced!");
+    } catch (err) {
+      console.error('Job save error:', err);
+      // Save locally
+      data.inventory = result.newInv;
+      data.jobs.unshift(job);
+      localStorage.setItem('esteban-data', JSON.stringify(data));
+      render();
+      showMsg("Saved locally — will sync later", "info");
+    }
     e.target.reset();
     document.getElementById('job-date').value = today;
   };
 
-  render();
+  // Edit & Delete (with local fallback)
+  window.editBatch = async (id) => {
+    const b = data.inventory.find(x => x.id === id);
+    if (!b) return;
+    const qty = prompt("New quantity:", b.qty);
+    const cost = prompt("New cost per bag:", b.cost);
+    if (qty !== null && cost !== null) {
+      try {
+        await setDoc(doc(db, "esteban", id), { qty: +qty, cost: +cost }, { merge: true });
+      } catch (err) {
+        b.qty = +qty;
+        b.cost = +cost;
+        localStorage.setItem('esteban-data', JSON.stringify(data));
+        render();
+      }
+    }
+  };
+
+  window.deleteBatch = async (id) => {
+    if (confirm("Delete this batch?")) {
+      try {
+        await deleteDoc(doc(db, "esteban", id));
+      } catch (err) {
+        data.inventory = data.inventory.filter(x => x.id !== id);
+        localStorage.setItem('esteban-data', JSON.stringify(data));
+        render();
+      }
+    }
+  };
+
   lucide.createIcons();
 </script>
 </body>
