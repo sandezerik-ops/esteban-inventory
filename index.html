@@ -26,6 +26,10 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    // NEW: Turn on offline mode (app works even without internet)
+enableIndexedDbPersistence(db).catch((err) => console.log('Offline mode error:', err));
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+import { getFirestore, enableIndexedDbPersistence, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
     // Make Firestore functions global for the rest of the script
     window.db = db;
@@ -264,27 +268,50 @@
   document.getElementById('job-date').value = today;
 
   // Add purchase
-  document.getElementById('add-form').onsubmit = async e => {
-    e.preventDefault();
-    const batch = {
-      type: "purchase",
-      date: document.getElementById('purchase-date').value,
-      qty: +document.getElementById('bags').value,
-      cost: +document.getElementById('cost').value
-    };
-    const id = Date.now().toString();
-    await setDoc(doc(db, "esteban", id), batch);
-    showMsg("Purchase added!");
-    e.target.reset();
-    document.getElementById('purchase-date').value = today;
+document.getElementById('add-form').onsubmit = async e => {
+  e.preventDefault();
+  const id = Date.now().toString();  // NEW: Give it a unique ID (like a name tag)
+  const batch = {
+    type: "purchase",
+    date: document.getElementById('purchase-date').value,
+    qty: +document.getElementById('bags').value,
+    cost: +document.getElementById('cost').value
   };
+  await setDoc(doc(db, "esteban", id), batch);  // Save with the ID
+  showMsg("Purchase added!");
+  e.target.reset();
+  document.getElementById('purchase-date').value = today;
+};
 
   // Log job
   document.getElementById('job-form').onsubmit = async e => {
-    e.preventDefault();
-    const needed = +document.getElementById('job-bags').value;
-    const result = consumeFIFO(needed);
-    if (!result) return alert("Not enough bags in stock!");
+  e.preventDefault();
+  const needed = +document.getElementById('job-bags').value;
+  const result = consumeFIFO(needed);
+  if (!result) return alert("Not enough bags in stock!");
+
+  // Delete old inventory
+  for (const old of data.inventory) {
+    await deleteDoc(doc(db, "esteban", old.id));
+  }
+  // Save updated inventory
+  for (const updated of result.newInv) {
+    await setDoc(doc(db, "esteban", updated.id), updated);
+  }
+  // Save new job with ID
+  const jobId = Date.now().toString();  // NEW: Give job an ID
+  const job = {
+    type: "job",
+    date: document.getElementById('job-date').value,
+    address: document.getElementById('job-address').value,
+    bags: needed,
+    cogs: +result.cost.toFixed(2)
+  };
+  await setDoc(doc(db, "esteban", jobId), job);  // Save with the ID
+  showMsg("Job logged & bags deducted!");
+  e.target.reset();
+  document.getElementById('job-date').value = today;
+};
 
     // Remove old inventory batches
     for (const old of data.inventory) {
@@ -330,3 +357,4 @@
 </script>
 </body>
 </html>
+
