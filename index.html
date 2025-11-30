@@ -316,13 +316,62 @@
   };
 
   // Log Job (with timestamp)
-  document.getElementById('job-form').onsubmit = async e => {
-    e.preventDefault();
-    const needed = +document.getElementById('job-bags').value;
-    const result = consumeFIFO(needed);
-    if (!result) return alert("Not enough bags in stock!");
+  document.getElementById('job-form').onsubmit = async e => {
+    e.preventDefault();
+    const needed = +document.getElementById('job-bags').value;
+    const result = consumeFIFO(needed);
+    if (!result) {
+      return alert("Not enough bags in stock!");
+    }
 
-    try {
+    try {
+      let remaining = needed;
+      const sorted = [...data.inventory].sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      // 1. Process Inventory Updates/Deletions (The FIX!)
+      for (const batch of sorted) {
+        if (remaining <= 0) break; // All bags consumed
+
+        const batchRef = doc(db, "esteban", batch.id);
+
+        if (batch.qty <= remaining) {
+          // FULL batch consumed (FIFO) -> DELETE
+          remaining -= batch.qty;
+          await deleteDoc(batchRef);
+        } else {
+          // PARTIAL batch consumed -> UPDATE quantity
+          const newQty = batch.qty - remaining;
+          await setDoc(batchRef, { qty: newQty, createdAt: serverTimestamp() }, { merge: true });
+          remaining = 0; // Consumption complete
+        }
+      }
+
+      // 2. Save job record
+      const jobId = Date.now().toString();
+      const job = {
+        type: "job",
+        date: document.getElementById('job-date').value,
+        address: document.getElementById('job-address').value,
+        bags: needed,
+        cogs: +result.cost.toFixed(2),
+        createdAt: serverTimestamp()
+      };
+      await setDoc(doc(db, "esteban", jobId), job);
+      
+      showMsg("Job logged & synced!");
+    } catch (err) {
+      console.error('Job save error:', err);
+      // Fallback to local save logic (your original code is fine here)
+      data.inventory = result.newInv;
+      data.jobs.unshift(job);
+      localStorage.setItem('esteban-data', JSON.stringify(data));
+      render();
+      showMsg("Saved locally — will sync later", "info");
+    }
+    
+    e.target.reset();
+    document.getElementById('job-date').value = today;
+  };
       // Delete old inventory
       for (const old of data.inventory) {
         await deleteDoc(doc(db, "esteban", old.id));
@@ -391,3 +440,4 @@
 </script>
 </body>
 </html>
+
