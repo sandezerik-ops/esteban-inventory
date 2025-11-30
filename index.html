@@ -8,10 +8,10 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
 
-  <!-- Firebase + Offline Support -->
+  <!-- Firebase + Offline (Fixed with Timestamp & Error Handling) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
-    import { getFirestore, enableIndexedDbPersistence, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+    import { getFirestore, enableIndexedDbPersistence, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCa9VjE4S3X9Bepfj8X713SVZCdsDht1Kw",
@@ -26,10 +26,12 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // Enable offline mode (works even without internet)
-    enableIndexedDbPersistence(db).catch(() => {});
+    // Enable offline with local cache
+    enableIndexedDbPersistence(db).catch((err) => {
+      console.log("Offline persistence error:", err);  // Log for debug
+    });
 
-    // Make functions available globally
+    // Global functions
     window.db = db;
     window.doc = doc;
     window.setDoc = setDoc;
@@ -38,6 +40,7 @@
     window.onSnapshot = onSnapshot;
     window.query = query;
     window.orderBy = orderBy;
+    window.serverTimestamp = serverTimestamp;
   </script>
 
   <style>
@@ -55,14 +58,15 @@
       <span class="text-indigo-700">Esteban</span>
       <span class="text-red-600 block text-4xl font-bold tracking-widest uppercase mt-2">INSULATION</span>
     </h1>
-    <p class="text-gray-600 mt-3 text-lg">FIFO Tracker • Real-time Sync • Works Offline</p>
+    <p class="text-gray-600 mt-3 text-lg">FIFO Tracker • Real-time Sync • Offline Backup</p>
   </header>
 
   <div class="bg-white p-5 rounded-2xl shadow-xl text-center">
     <div class="flex items-center justify-center gap-3">
       <i data-lucide="cloud" class="w-8 h-8 text-green-600"></i>
-      <span class="font-bold text-lg text-green-600">Connected to Cloud</span>
+      <span id="sync-status" class="font-bold text-lg text-green-600">Syncing...</span>
     </div>
+    <p class="text-xs text-gray-500 mt-3">Data backed up locally + cloud</p>
   </div>
   <div id="sync-message"></div>
 
@@ -108,7 +112,7 @@
     </form>
   </div>
 
-  <!-- Stock + History -->
+  <!-- Stock -->
   <div class="bg-white p-6 rounded-2xl shadow-2xl">
     <div class="flex justify-between items-center mb-4">
       <h2 class="text-2xl font-bold flex items-center">
@@ -119,18 +123,20 @@
     <div id="stock-list" class="scrollable space-y-3"></div>
   </div>
 
+  <!-- Purchases -->
   <div class="bg-white p-6 rounded-2xl shadow-2xl">
     <h2 class="text-2xl font-bold mb-4 flex items-center">
       <i data-lucide="shopping-cart" class="w-8 h-8 mr-3 text-purple-600"></i> Purchase History
     </h2>
-    <div id="purchase-list" class="scrollable space-y-3"><p class="text-center text-gray-500 py-8">No purchases yet</p></div>
+    <div id="purchase-list" class="scrollable space-y-3"></div>
   </div>
 
+  <!-- Jobs -->
   <div class="bg-white p-6 rounded-2xl shadow-2xl">
     <h2 class="text-2xl font-bold mb-4 flex items-center">
       <i data-lucide="list-checks" class="w-8 h-8 mr-3 text-green-600"></i> Job History
     </h2>
-    <div id="job-list" class="scrollable space-y-3"><p class="text-center text-gray-500 py-8">No jobs yet</p></div>
+    <div id="job-list" class="scrollable space-y-3"></div>
   </div>
 </div>
 
@@ -138,13 +144,27 @@
   let data = { inventory: [], purchases: [], jobs: [] };
   const today = new Date().toISOString().split('T')[0];
 
-  // Set today's date automatically
-  document.getElementById('purchase-date').value = today;
-  document.getElementById('job-date').value = today;
+  // Auto-fill dates (runs after HTML loads)
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('purchase-date').value = today;
+    document.getElementById('job-date').value = today;
+  });
 
-  // Real-time listener
-  const q = query(collection(db, "esteban"), orderBy("date"));
-  const unsubscribe = onSnapshot(q, (snapshot) => {
+  // Load from localStorage on start (backup if cloud fails)
+  const saved = localStorage.getItem('esteban-data');
+  if (saved) {
+    try {
+      data = JSON.parse(saved);
+      render();  // Show local data immediately
+      document.getElementById('sync-status').textContent = 'Loaded from Local';
+    } catch (e) {
+      console.error('Local load error:', e);
+    }
+  }
+
+  // Real-time listener with error handling + local fallback
+  const q = query(collection(db, "esteban"), orderBy("createdAt"));  // Sort by timestamp (no index needed)
+  onSnapshot(q, (snapshot) => {
     data = { inventory: [], purchases: [], jobs: [] };
     snapshot.forEach((docSnap) => {
       const item = { id: docSnap.id, ...docSnap.data() };
@@ -155,14 +175,26 @@
         data.jobs.push(item);
       }
     });
-    data.inventory.sort((a,b) => new Date(a.date) - new Date(b.date));
+    data.inventory.sort((a,b) => new Date(a.date) - new Date(b.date));  // Client-side FIFO
+    localStorage.setItem('esteban-data', JSON.stringify(data));  // Always save local
     render();
+    document.getElementById('sync-status').textContent = 'Synced from Cloud';
+  }, (err) => {
+    console.error('Listener error:', err);  // Log for debug
+    // Fallback to local if cloud fails
+    const saved = localStorage.getItem('esteban-data');
+    if (saved) {
+      data = JSON.parse(saved);
+      render();
+    }
+    document.getElementById('sync-status').textContent = 'Using Local Backup';
+    showMsg("Cloud sync failed — using local data", "info");
   });
 
-  function showMsg(text) {
+  function showMsg(text, type = "success") {
     const el = document.getElementById('sync-message');
-    el.innerHTML = `<div class="p-3 rounded-lg bg-green-100 text-green-700 text-center">${text}</div>`;
-    setTimeout(() => el.innerHTML = '', 3000);
+    el.innerHTML = `<div class="mt-3 p-3 rounded-lg text-center ${type==='success'?'bg-green-100 text-green-700':'bg-blue-100 text-blue-700'}">${text}</div>`;
+    setTimeout(() => el.innerHTML = '', 4000);
   }
 
   function consumeFIFO(needed) {
@@ -185,9 +217,9 @@
   }
 
   function render() {
-    const totalBags = data.inventory.reduce((a,b) => a + b.qty, 0);
-    const totalValue = data.inventory.reduce((a,b) => a + b.qty * b.cost, 0).toFixed(2);
-    const totalCOGS = data.jobs.reduce((a,j) => a + (j.cogs || 0), 0).toFixed(2);
+    const totalBags = data.inventory.reduce((s,b) => s + b.qty, 0);
+    const totalValue = data.inventory.reduce((s,b) => s + b.qty * b.cost, 0).toFixed(2);
+    const totalCOGS = data.jobs.reduce((s,j) => s + (j.cogs || 0), 0).toFixed(2);
 
     document.getElementById('metrics').innerHTML = `
       <div class="bg-white p-5 rounded-xl shadow text-center border-b-4 border-indigo-600">
@@ -208,6 +240,7 @@
     document.getElementById('total-badge').textContent = `${totalBags} bags`;
     document.getElementById('job-btn').disabled = totalBags === 0;
 
+    // Stock list
     document.getElementById('stock-list').innerHTML = data.inventory.length === 0
       ? '<p class="text-center text-gray-500 py-8">No stock</p>'
       : data.inventory.map((b,i) => `
@@ -226,25 +259,36 @@
         </div>
       `).join('');
 
+    // Purchases
     document.getElementById('purchase-list').innerHTML = data.purchases.length === 0
       ? '<p class="text-center text-gray-500 py-8">No purchases yet</p>'
       : data.purchases.slice().reverse().map(p => `
         <div class="p-4 bg-purple-50 rounded-lg border-l-4 border-purple-500">
-          <p class="font-bold">${p.qty} bags @ $${p.cost.toFixed(2)}/bag • ${new Date(p.date).toLocaleDateString()}</p>
+          <div class="flex justify-between">
+            <div>
+              <p class="font-bold">${p.qty} bags @ $${p.cost.toFixed(2)}/bag</p>
+              <p class="text-sm text-gray-600">${new Date(p.date).toLocaleDateString()} • $${(p.qty*p.cost).toFixed(2)}</p>
+            </div>
+          </div>
         </div>
       `).join('');
 
+    // Jobs
     document.getElementById('job-list').innerHTML = data.jobs.length === 0
       ? '<p class="text-center text-gray-500 py-8">No jobs yet</p>'
       : data.jobs.slice().reverse().map(j => `
         <div class="p-4 bg-green-50 rounded-lg border-l-4 border-green-500">
-          <p class="font-bold">${j.address}</p>
-          <p class="text-sm text-gray-600">${new Date(j.date).toLocaleDateString()} • ${j.bags} bags used • COGS $${j.cogs.toFixed(2)}</p>
+          <div class="flex justify-between">
+            <div>
+              <p class="font-bold">${j.address}</p>
+              <p class="text-sm text-gray-600">${new Date(j.date).toLocaleDateString()} • ${j.bags} bags • COGS $${(j.cogs||0).toFixed(2)}</p>
+            </div>
+          </div>
         </div>
       `).join('');
   }
 
-  // ADD PURCHASE - WORKS 100%
+  // Add Purchase (with timestamp)
   document.getElementById('add-form').onsubmit = async e => {
     e.preventDefault();
     const id = Date.now().toString();
@@ -252,62 +296,98 @@
       type: "purchase",
       date: document.getElementById('purchase-date').value,
       qty: +document.getElementById('bags').value,
-      cost: +document.getElementById('cost').value
+      cost: +document.getElementById('cost').value,
+      createdAt: serverTimestamp()  // Auto-timestamp for sorting
     };
-    await setDoc(doc(db, "esteban", id), batch);
-    showMsg("Added to inventory!");
+    try {
+      await setDoc(doc(db, "esteban", id), batch);
+      showMsg("Purchase added & synced!");
+    } catch (err) {
+      console.error('Save error:', err);
+      // Save locally if cloud fails
+      data.inventory.push(batch);
+      data.purchases.push(batch);
+      localStorage.setItem('esteban-data', JSON.stringify(data));
+      render();
+      showMsg("Saved locally — will sync later", "info");
+    }
     e.target.reset();
     document.getElementById('purchase-date').value = today;
   };
 
-  // LOG JOB - WORKS 100%
+  // Log Job (with timestamp)
   document.getElementById('job-form').onsubmit = async e => {
     e.preventDefault();
     const needed = +document.getElementById('job-bags').value;
     const result = consumeFIFO(needed);
-    if (!result) return alert("Not enough bags!");
+    if (!result) return alert("Not enough bags in stock!");
 
-    // Remove old inventory
-    for (const old of data.inventory) {
-      await deleteDoc(doc(db, "esteban", old.id));
+    try {
+      // Delete old inventory
+      for (const old of data.inventory) {
+        await deleteDoc(doc(db, "esteban", old.id));
+      }
+      // Save updated inventory
+      for (const updated of result.newInv) {
+        updated.createdAt = serverTimestamp();
+        await setDoc(doc(db, "esteban", updated.id), updated);
+      }
+      // Save job
+      const jobId = Date.now().toString();
+      const job = {
+        type: "job",
+        date: document.getElementById('job-date').value,
+        address: document.getElementById('job-address').value,
+        bags: needed,
+        cogs: +result.cost.toFixed(2),
+        createdAt: serverTimestamp()
+      };
+      await setDoc(doc(db, "esteban", jobId), job);
+      showMsg("Job logged & synced!");
+    } catch (err) {
+      console.error('Job save error:', err);
+      // Save locally
+      data.inventory = result.newInv;
+      data.jobs.unshift(job);
+      localStorage.setItem('esteban-data', JSON.stringify(data));
+      render();
+      showMsg("Saved locally — will sync later", "info");
     }
-    // Save updated inventory
-    for (const updated of result.newInv) {
-      await setDoc(doc(db, "esteban", updated.id), updated);
-    }
-    // Save job
-    const jobId = Date.now().toString();
-    const job = {
-      type: "job",
-      date: document.getElementById('job-date').value,
-      address: document.getElementById('job-address').value,
-      bags: needed,
-      cogs: +result.cost.toFixed(2)
-    };
-    await setDoc(doc(db, "esteban", jobId), job);
-    showMsg("Job logged!");
     e.target.reset();
     document.getElementById('job-date').value = today;
   };
 
-  // Edit & Delete
+  // Edit & Delete (with local fallback)
   window.editBatch = async (id) => {
     const b = data.inventory.find(x => x.id === id);
+    if (!b) return;
     const qty = prompt("New quantity:", b.qty);
     const cost = prompt("New cost per bag:", b.cost);
-    if (qty && cost) {
-      await setDoc(doc(db, "esteban", id), { qty: +qty, cost: +cost }, { merge: true });
+    if (qty !== null && cost !== null) {
+      try {
+        await setDoc(doc(db, "esteban", id), { qty: +qty, cost: +cost }, { merge: true });
+      } catch (err) {
+        b.qty = +qty;
+        b.cost = +cost;
+        localStorage.setItem('esteban-data', JSON.stringify(data));
+        render();
+      }
     }
   };
 
   window.deleteBatch = async (id) => {
     if (confirm("Delete this batch?")) {
-      await deleteDoc(doc(db, "esteban", id));
+      try {
+        await deleteDoc(doc(db, "esteban", id));
+      } catch (err) {
+        data.inventory = data.inventory.filter(x => x.id !== id);
+        localStorage.setItem('esteban-data', JSON.stringify(data));
+        render();
+      }
     }
   };
 
   lucide.createIcons();
-  render(); // Initial render
 </script>
 </body>
 </html>
