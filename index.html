@@ -10,10 +10,14 @@
 
   <!-- Firebase + Offline (Fixed with Timestamp & Error Handling) -->
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
-    import { getFirestore, enableIndexedDbPersistence, collection, doc, setDoc, deleteDoc,  onValue, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+  // ALL Realtime Database functions come from firebase-database.js
+  import { getDatabase, ref, set, remove, onValue, query, orderByChild, update, ServerValue } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-database.js";
 
-    const firebaseConfig = {
+  // ... rest of your Firebase config and app initialization
+
+
+ const firebaseConfig = {
       apiKey: "AIzaSyCDaShKWel50m9BUdkHwZFn4hAGqLTz7K4",
     authDomain: "esteban-tracker.firebaseapp.com",
     databaseURL: "https://esteban-tracker-default-rtdb.firebaseio.com",
@@ -30,7 +34,7 @@
     enableIndexedDbPersistence(db).catch((err) => {
       console.log("Offline persistence error:", err);  // Log for debug
     });
-
+</script>
     // Global functions
     window.db = db;
     window.doc = doc;
@@ -391,5 +395,6 @@
 </script>
 </body>
 </html>
+
 
 
