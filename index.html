@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <!-- Recommended to add mobile-web-app-capable for broader support -->
+  <meta name="mobile-web-app-capable" content="yes">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Esteban INSULATION FIFO Tracker</title>
@@ -9,40 +11,34 @@
   <script src="https://unpkg.com/lucide@latest"></script>
 
   <!-- Firebase + Offline (Fixed with Timestamp & Error Handling) -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
-  // CORRECT: All Realtime Database functions from firebase-database.js
-  import { getDatabase, ref, set, remove, onValue, query, orderByChild, update, ServerValue } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-database.js";
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+    // CORRECT: All Realtime Database functions from firebase-database.js
+    import { getDatabase, ref, set, remove, onValue, query, orderByChild, update, ServerValue } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-database.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyCDaShKWel50m9BUdkHwZFn4hAGqLTz7K4",
-    authDomain: "esteban-tracker.firebaseapp.com",
-    databaseURL: "https://esteban-tracker-default-rtdb.firebaseio.com",
-    projectId: "esteban-tracker",
-    storageBucket: "esteban-tracker.firebasestorage.app",
-    messagingSenderId: "378238803870",
-    appId: "1:378238803870:web:1a6883e4f0379d21dcc08f"
-  };
+    const firebaseConfig = {
+      apiKey: "AIzaSyCDaShKWel50m9BUdkHwZFn4hAGqLTz7K4",
+      authDomain: "esteban-tracker.firebaseapp.com",
+      databaseURL: "https://esteban-tracker-default-rtdb.firebaseio.com",
+      projectId: "esteban-tracker",
+      storageBucket: "esteban-tracker.firebasestorage.app",
+      messagingSenderId: "378238803870",
+      appId: "1:378238803870:web:1a6883e4f0379d21dcc08f"
+    };
 
-  const app = initializeApp(firebaseConfig);
-  // CORRECT: Initialize Realtime Database (rtdb) instead of Firestore (db)
-  const rtdb = getDatabase(app);
+    const app = initializeApp(firebaseConfig);
+    // CORRECT: Initialize Realtime Database (rtdb) instead of Firestore (db)
+    const rtdb = getDatabase(app);
 
-  // REMOVED: enableIndexedDbPersistence is a Firestore-only feature.
-  // Realtime Database handles offline persistence automatically for web clients using onValue listeners.
+    // REMOVED: enableIndexedDbPersistence is a Firestore-only feature.
+    // Realtime Database handles offline persistence automatically for web clients using onValue listeners.
 
-  // Global functions (updated for RTDB and correct naming)
-  // These make `rtdb` available globally for your HTML inline event handlers if needed,
-  // but it's often better practice to keep logic inside event listeners.
-  window.rtdb = rtdb; // Making the rtdb instance globally accessible if needed
-
-  // REMOVED: Firestore-specific global functions that are no longer applicable
-  // window.doc, window.setDoc, window.deleteDoc, window.collection,
-  // window.onSnapshot, window.query, window.orderBy, window.serverTimestamp
-  // Your main script will use 'ref', 'set', 'remove', 'onValue', 'query', 'orderByChild', 'ServerValue' directly from imports.
-
-</script>
-<!-- The rest of your HTML and the second <script type="module"> block should follow here -->
+    // Global functions (updated for RTDB and correct naming)
+    // Making the rtdb instance globally accessible.
+    window.rtdb = rtdb; 
+    // The main script will use ref, set, remove, onValue, query, orderByChild, ServerValue directly from imports.
+    // Removed Firestore-specific global functions like window.doc, window.setDoc, etc.
+  </script>
 
 
   <style>
@@ -165,18 +161,23 @@
   }
 
   // Real-time listener with error handling + local fallback
-  const q = query(ref(rtdb, "esteban"), orderByChild("createdAt"));  // Sort by timestamp (no index needed)
-  onSnapshot(q, (snapshot) => {
+  const q = query(ref(rtdb, "esteban"), orderByChild("createdAt"));
+
+  // CHANGED: From onSnapshot (Firestore) to onValue (Realtime Database)
+  onValue(q, (snapshot) => {
     data = { inventory: [], purchases: [], jobs: [] };
-    snapshot.forEach((docSnap) => {
-      const item = { id: docSnap.id, ...docSnap.data() };
-      if (item.type === "purchase") {
-        data.purchases.push(item);
-        data.inventory.push(item);
-      } else if (item.type === "job") {
-        data.jobs.push(item);
-      }
-    });
+    if (snapshot.exists()) {
+      snapshot.forEach((childSnapshot) => {
+        // CHANGED: Access data using childSnapshot.key and childSnapshot.val() for RTDB
+        const item = { id: childSnapshot.key, ...childSnapshot.val() };
+        if (item.type === "purchase") {
+          data.purchases.push(item);
+          data.inventory.push(item);
+        } else if (item.type === "job") {
+          data.jobs.push(item);
+        }
+      });
+    }
     data.inventory.sort((a,b) => new Date(a.date) - new Date(b.date));  // Client-side FIFO
     localStorage.setItem('esteban-data', JSON.stringify(data));  // Always save local
     render();
@@ -299,10 +300,11 @@
       date: document.getElementById('purchase-date').value,
       qty: +document.getElementById('bags').value,
       cost: +document.getElementById('cost').value,
-      createdAt: ServerValue.TIMESTAMP  // Auto-timestamp for sorting
+      createdAt: ServerValue.TIMESTAMP // CORRECT: Using RTDB's ServerValue.TIMESTAMP
     };
     try {
-      await setDoc(doc(db, "esteban", id), batch);
+      // CHANGED: Using RTDB's set function
+      await set(ref(rtdb, `esteban/${id}`), batch);
       showMsg("Purchase added & synced!");
     } catch (err) {
       console.error('Save error:', err);
@@ -325,14 +327,14 @@
     if (!result) return alert("Not enough bags in stock!");
 
     try {
-      // Delete old inventory
+      // CHANGED: Using RTDB's remove for deleting old inventory items
       for (const old of data.inventory) {
-        await deleteDoc(doc(db, "esteban", old.id));
+        await remove(ref(rtdb, `esteban/${old.id}`));
       }
-      // Save updated inventory
+      // CHANGED: Using RTDB's set for updated inventory
       for (const updated of result.newInv) {
-        updated.createdAt = serverTimestamp();
-        await setDoc(doc(db, "esteban", updated.id), updated);
+        updated.createdAt = ServerValue.TIMESTAMP; // CORRECT: Using RTDB's ServerValue.TIMESTAMP
+        await set(ref(rtdb, `esteban/${updated.id}`), updated);
       }
       // Save job
       const jobId = Date.now().toString();
@@ -342,9 +344,10 @@
         address: document.getElementById('job-address').value,
         bags: needed,
         cogs: +result.cost.toFixed(2),
-        createdAt: serverTimestamp()
+        createdAt: ServerValue.TIMESTAMP // CORRECT: Using RTDB's ServerValue.TIMESTAMP
       };
-      await setDoc(doc(db, "esteban", jobId), job);
+      // CHANGED: Using RTDB's set for logging job
+      await set(ref(rtdb, `esteban/${jobId}`), job);
       showMsg("Job logged & synced!");
     } catch (err) {
       console.error('Job save error:', err);
@@ -367,12 +370,16 @@
     const cost = prompt("New cost per bag:", b.cost);
     if (qty !== null && cost !== null) {
       try {
-        await setDoc(doc(db, "esteban", id), { qty: +qty, cost: +cost }, { merge: true });
+        // CHANGED: Using RTDB's update for partial modification (replaces Firestore setDoc with merge)
+        await update(ref(rtdb, `esteban/${id}`), { qty: +qty, cost: +cost });
       } catch (err) {
+        console.error('Edit error:', err);
+        // Fallback to local
         b.qty = +qty;
         b.cost = +cost;
         localStorage.setItem('esteban-data', JSON.stringify(data));
         render();
+        showMsg("Edit saved locally — will sync later", "info");
       }
     }
   };
@@ -380,11 +387,15 @@
   window.deleteBatch = async (id) => {
     if (confirm("Delete this batch?")) {
       try {
-        await deleteDoc(doc(db, "esteban", id));
+        // CHANGED: Using RTDB's remove to delete an item
+        await remove(ref(rtdb, `esteban/${id}`));
       } catch (err) {
+        console.error('Delete error:', err);
+        // Fallback to local
         data.inventory = data.inventory.filter(x => x.id !== id);
         localStorage.setItem('esteban-data', JSON.stringify(data));
         render();
+        showMsg("Delete saved locally — will sync later", "info");
       }
     }
   };
@@ -393,7 +404,3 @@
 </script>
 </body>
 </html>
-
-
-
-
