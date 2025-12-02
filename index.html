@@ -11,7 +11,7 @@
   <!-- Firebase + Offline (Fixed with Timestamp & Error Handling) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
-    import { getFirestore, enableIndexedDbPersistence, collection, doc, setDoc, deleteDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+    import { getFirestore, enableIndexedDbPersistence, collection, doc, setDoc, deleteDoc,  onValue, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyCDaShKWel50m9BUdkHwZFn4hAGqLTz7K4",
@@ -163,7 +163,7 @@
   }
 
   // Real-time listener with error handling + local fallback
-  const q = query(collection(db, "esteban"), orderBy("createdAt"));  // Sort by timestamp (no index needed)
+  const q = query(ref(rtdb, "esteban"), orderByChild("createdAt"));  // Sort by timestamp (no index needed)
   onSnapshot(q, (snapshot) => {
     data = { inventory: [], purchases: [], jobs: [] };
     snapshot.forEach((docSnap) => {
@@ -297,7 +297,7 @@
       date: document.getElementById('purchase-date').value,
       qty: +document.getElementById('bags').value,
       cost: +document.getElementById('cost').value,
-      createdAt: serverTimestamp()  // Auto-timestamp for sorting
+      createdAt: ServerValue.TIMESTAMP  // Auto-timestamp for sorting
     };
     try {
       await setDoc(doc(db, "esteban", id), batch);
@@ -391,4 +391,5 @@
 </script>
 </body>
 </html>
+
 
