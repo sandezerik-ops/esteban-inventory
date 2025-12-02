@@ -9,43 +9,41 @@
   <script src="https://unpkg.com/lucide@latest"></script>
 
   <!-- Firebase + Offline (Fixed with Timestamp & Error Handling) -->
-  <script type="module">
+<script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
-  // ALL Realtime Database functions come from firebase-database.js
+  // CORRECT: All Realtime Database functions from firebase-database.js
   import { getDatabase, ref, set, remove, onValue, query, orderByChild, update, ServerValue } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-database.js";
 
-  // ... rest of your Firebase config and app initialization
-
-
- const firebaseConfig = {
-      apiKey: "AIzaSyCDaShKWel50m9BUdkHwZFn4hAGqLTz7K4",
+  const firebaseConfig = {
+    apiKey: "AIzaSyCDaShKWel50m9BUdkHwZFn4hAGqLTz7K4",
     authDomain: "esteban-tracker.firebaseapp.com",
     databaseURL: "https://esteban-tracker-default-rtdb.firebaseio.com",
     projectId: "esteban-tracker",
     storageBucket: "esteban-tracker.firebasestorage.app",
     messagingSenderId: "378238803870",
     appId: "1:378238803870:web:1a6883e4f0379d21dcc08f"
-    };
+  };
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+  const app = initializeApp(firebaseConfig);
+  // CORRECT: Initialize Realtime Database (rtdb) instead of Firestore (db)
+  const rtdb = getDatabase(app);
 
-    // Enable offline with local cache
-    enableIndexedDbPersistence(db).catch((err) => {
-      console.log("Offline persistence error:", err);  // Log for debug
-    });
+  // REMOVED: enableIndexedDbPersistence is a Firestore-only feature.
+  // Realtime Database handles offline persistence automatically for web clients using onValue listeners.
+
+  // Global functions (updated for RTDB and correct naming)
+  // These make `rtdb` available globally for your HTML inline event handlers if needed,
+  // but it's often better practice to keep logic inside event listeners.
+  window.rtdb = rtdb; // Making the rtdb instance globally accessible if needed
+
+  // REMOVED: Firestore-specific global functions that are no longer applicable
+  // window.doc, window.setDoc, window.deleteDoc, window.collection,
+  // window.onSnapshot, window.query, window.orderBy, window.serverTimestamp
+  // Your main script will use 'ref', 'set', 'remove', 'onValue', 'query', 'orderByChild', 'ServerValue' directly from imports.
+
 </script>
-    // Global functions
-    window.db = db;
-    window.doc = doc;
-    window.setDoc = setDoc;
-    window.deleteDoc = deleteDoc;
-    window.collection = collection;
-    window.onSnapshot = onSnapshot;
-    window.query = query;
-    window.orderBy = orderBy;
-    window.serverTimestamp = serverTimestamp;
-  </script>
+<!-- The rest of your HTML and the second <script type="module"> block should follow here -->
+
 
   <style>
     body { font-family: system-ui, sans-serif; background: linear-gradient(to bottom, #eef2ff, #e0e7ff); min-height: 100vh; }
@@ -395,6 +393,7 @@
 </script>
 </body>
 </html>
+
 
 
 
