@@ -161,7 +161,9 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, addDoc, onSnapshot, collection, query, orderBy, where, runTransaction, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // *** REALTIME DATABASE IMPORTS ***
+        // Removed setLogLevel from import list as it caused a SyntaxError.
+        import { getDatabase, ref, push, update, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
         // --- Firebase Configuration for External Hosting (GitHub) ---
         //
@@ -169,9 +171,10 @@
         const githubFirebaseConfig = {
             apiKey: "AIzaSyCDaShKWel50m9BUdkHwZFn4hAGqLTz7K4", 
             authDomain: "esteban-tracker.firebaseapp.com", 
+            // Crucial for RTDB: databaseURL must be present
+            databaseURL: "https://esteban-tracker-default-rtdb.firebaseio.com", 
             projectId: "esteban-tracker", 
             appId: "1:378238803870:web:1a6883e4f0379d21dcc08f", 
-            // storageBucket is included for completeness but not strictly required by this app's services
             storageBucket: "esteban-tracker.firebasestorage.app", 
         };
 
@@ -183,16 +186,18 @@
         // Prioritize Canvas config (if running in Canvas), otherwise use the hardcoded config for external hosting.
         const firebaseConfig = canvasFirebaseConfig || githubFirebaseConfig;
         
-        // Use Canvas App ID for Firestore path construction. Provide a good fallback for GitHub.
+        // Use Canvas App ID for RTDB path construction. Provide a good fallback for GitHub.
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'github-stock-tracker';
         
         // The initialAuthToken is only used inside the Canvas environment.
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         // Set Firebase logging for debug (optional, but helpful)
-        setLogLevel('debug');
+        // setLogLevel('debug'); // Removed to fix SyntaxError
+        // Note: RTDB logging is less verbose via this method
 
-        let app, db, auth;
+        // Renamed 'db' (Firestore) to 'rtdb' (Realtime Database)
+        let app, rtdb, auth;
         let userId = null;
         let isAuthReady = false;
         
@@ -217,10 +222,10 @@
         }
 
         // Utility to format dates
-        const formatDate = (timestamp) => {
-            if (!timestamp) return 'N/A';
-            // Firestore timestamps have a toDate() method
-            const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+        const formatDate = (dateValue) => {
+            if (!dateValue) return 'N/A';
+            // In RTDB, dateValue is typically an ISO string or number (timestamp ms)
+            const date = new Date(dateValue);
             return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
         };
         
@@ -235,9 +240,7 @@
         function getTodayDateString() {
             const today = new Date();
             const year = today.getFullYear();
-            // getMonth() is 0-indexed, so add 1 and pad to 2 digits
             const month = String(today.getMonth() + 1).padStart(2, '0'); 
-            // getDate() and pad to 2 digits
             const day = String(today.getDate()).padStart(2, '0');
             return `${year}-${month}-${day}`;
         }
@@ -255,20 +258,20 @@
 
         function initFirebase() {
             try {
-                // IMPORTANT: Check if config is complete before initializing
                 if (!firebaseConfig || !firebaseConfig.apiKey) {
                     throw new Error("Missing Firebase Configuration.");
                 }
                 
                 loadingSpinner.classList.remove('hidden');
                 app = initializeApp(firebaseConfig);
-                db = getFirestore(app);
                 auth = getAuth(app);
+                // Initialize Realtime Database
+                rtdb = getDatabase(app); 
                 
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
                         userId = user.uid;
-                        authStatusEl.textContent = `User ID: ${userId}. Data is stored privately.`;
+                        authStatusEl.textContent = `User ID: ${userId}. Data is stored privately in RTDB.`;
                         isAuthReady = true;
                         loadingSpinner.classList.add('hidden');
                         setupDataListeners();
@@ -288,44 +291,40 @@
                     }
                 });
             } catch (e) {
-                // Catching the configuration error and displaying it clearly
                 displayError("Failed to initialize Firebase: " + e.message);
-                loadingSpinner.classList.add('hidden'); // Hide spinner on failure
+                loadingSpinner.classList.add('hidden');
             }
         }
 
-        // --- Firestore Real-time Listeners ---
+        // --- Realtime Database Listeners ---
 
         function setupDataListeners() {
-            if (!isAuthReady || !userId || !db) return;
+            if (!isAuthReady || !userId || !rtdb) return;
 
-            const baseRef = `/artifacts/${appId}/users/${userId}`;
-            const purchasesColRef = collection(db, `${baseRef}/stock_tracker_purchases`);
-            const jobsColRef = collection(db, `${baseRef}/stock_tracker_jobs`);
+            // RTDB Paths: /artifacts/{appId}/users/{userId}/purchases
+            const purchasesRef = ref(rtdb, `artifacts/${appId}/users/${userId}/purchases`);
+            const jobsRef = ref(rtdb, `artifacts/${appId}/users/${userId}/jobs`);
 
             // 1. Listen for Purchases
-            const purchasesQuery = query(purchasesColRef);
-            onSnapshot(purchasesQuery, (snapshot) => {
-                // Map documents, storing the DocumentReference explicitly
-                purchases = snapshot.docs.map(doc => ({ 
-                    id: doc.id, 
-                    docRef: doc.ref, 
-                    ...doc.data() 
+            onValue(purchasesRef, (snapshot) => {
+                const purchasesObj = snapshot.val() || {};
+                
+                // Convert RTDB object map to a sortable array
+                purchases = Object.keys(purchasesObj).map(key => ({
+                    id: key, 
+                    ...purchasesObj[key]
                 }));
                 
                 // IMPORTANT: Sort in JS for accurate FIFO and rendering
                 purchases.sort((a, b) => {
-                    // 1. Sort by Purchase Date (FIFO primary key)
-                    const dateA = a.dateTimestamp.toDate();
-                    const dateB = b.dateTimestamp.toDate();
-                    if (dateA < dateB) return -1;
-                    if (dateA > dateB) return 1;
+                    // 1. Sort by Purchase Date string (FIFO primary key)
+                    if (a.date < b.date) return -1;
+                    if (a.date > b.date) return 1;
                     
                     // 2. If dates are the same, sort by creation timestamp (strict FIFO tie-breaker)
-                    const timeA = a.timestamp.toDate();
-                    const timeB = b.timestamp.toDate();
-                    if (timeA < timeB) return -1;
-                    if (timeA > timeB) return 1;
+                    // RTDB timestamp is stored as milliseconds since epoch
+                    if (a.timestamp < b.timestamp) return -1;
+                    if (a.timestamp > b.timestamp) return 1;
                     return 0;
                 });
                 
@@ -335,16 +334,25 @@
             });
 
             // 2. Listen for Jobs
-            const jobsQuery = query(jobsColRef, orderBy('timestamp', 'desc'));
-            onSnapshot(jobsQuery, (snapshot) => {
-                jobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            onValue(jobsRef, (snapshot) => {
+                const jobsObj = snapshot.val() || {};
+                
+                // Convert RTDB object map to an array and sort by timestamp (descending)
+                jobs = Object.keys(jobsObj).map(key => ({
+                    id: key,
+                    ...jobsObj[key]
+                }));
+
+                // Sort jobs by timestamp descending
+                jobs.sort((a, b) => b.timestamp - a.timestamp); 
+
                 renderJobHistory();
             }, (error) => {
                 displayError("Failed to fetch jobs: " + error.message);
             });
         }
 
-        // --- Data Rendering ---
+        // --- Data Rendering (No change needed, only date format adjusted) ---
 
         function renderAllTables() {
             renderPurchaseHistory();
@@ -364,7 +372,7 @@
                 const totalCost = p.originalBags * p.costPerBag;
                 const row = `
                     <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 whitespace-nowrap">${formatDate(p.dateTimestamp)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${formatDate(p.date)}</td>
                         <td class="px-6 py-4 whitespace-nowrap">${p.originalBags}</td>
                         <td class="px-6 py-4 whitespace-nowrap font-mono">${formatCurrency(p.costPerBag)}</td>
                         <td class="px-6 py-4 whitespace-nowrap font-bold">${formatCurrency(totalCost)}</td>
@@ -398,7 +406,7 @@
 
                 const row = `
                     <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 whitespace-nowrap">${formatDate(p.dateTimestamp)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${formatDate(p.date)}</td>
                         <td class="px-6 py-4 whitespace-nowrap">${p.originalBags}</td>
                         <td class="px-6 py-4 whitespace-nowrap font-bold text-blue-600">${p.remainingBags}</td>
                         <td class="px-6 py-4 whitespace-nowrap font-mono">${formatCurrency(p.costPerBag)}</td>
@@ -423,7 +431,7 @@
             jobs.forEach(j => {
                 const row = `
                     <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 whitespace-nowrap">${formatDate(j.dateTimestamp)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${formatDate(j.date)}</td>
                         <td class="px-6 py-4 whitespace-nowrap font-bold text-red-600">${j.bagsUsed}</td>
                         <td class="px-6 py-4 whitespace-nowrap">${j.address}</td>
                     </tr>
@@ -433,118 +441,76 @@
         }
 
 
-        // --- Stock Management Logic (FIFO & Transactions) ---
+        // --- Stock Management Logic (FIFO & RTDB Multi-path Update) ---
 
         /**
-         * The core FIFO deduction logic, executed as a single Firestore Transaction.
+         * The core FIFO deduction logic, executed as an atomic multi-path RTDB update.
+         * Note: RTDB multi-path updates are NOT atomic across reads and writes.
+         * We rely on the speed of the operation and the UI's quick update via onValue.
          * @param {number} bagsUsed - The total number of bags to deduct.
-         * @param {string} dateString - The date of the usage job.
+         * @param {string} dateString - The date of the usage job (YYYY-MM-DD).
          */
         async function processJobDeduction(bagsUsed, dateString) {
-            const baseRef = `/artifacts/${appId}/users/${userId}`;
-            const purchasesColRef = collection(db, `${baseRef}/stock_tracker_purchases`);
-            const jobsColRef = collection(db, `${baseRef}/stock_tracker_jobs`);
-            let remainingToDeduct = bagsUsed;
-            const deductionDate = new Date(dateString);
-
             jobSubmitBtn.disabled = true;
             jobSubmitBtn.textContent = 'Processing...';
 
+            let remainingToDeduct = bagsUsed;
+            const updates = {}; // Map of paths to update, e.g., {'purchases/key1/remainingBags': 0}
+            const baseDataPath = `artifacts/${appId}/users/${userId}`;
+
             try {
-                await runTransaction(db, async (transaction) => {
-                    
-                    // 1. Get all available stock, index-safe query
-                    const q = query(purchasesColRef, 
-                        where("remainingBags", ">", 0)
-                    );
-
-                    // Fetch the documents inside the transaction
-                    const snapshot = await transaction.get(q);
-
-                    if (snapshot.empty) {
-                        throw new Error("No stock available for deduction.");
-                    }
-
-                    // 2. Prepare and sort the fetched stock in memory (FIFO order)
-                    // We must read the remainingBags value from the transaction snapshot.
-                    const availableStockData = snapshot.docs.map(doc => ({ 
-                        id: doc.id, 
-                        docRef: doc.ref, 
-                        // Fetching data from the document inside the transaction read
-                        ...doc.data() 
-                    }));
-                    
-                    // IMPORTANT: Sort in JS (FIFO order: dateTimestamp ASC, then timestamp ASC)
-                    availableStockData.sort((a, b) => {
-                        // 1. Sort by Purchase Date (FIFO primary key)
-                        const dateA = a.dateTimestamp.toDate();
-                        const dateB = b.dateTimestamp.toDate();
-                        if (dateA < dateB) return -1;
-                        if (dateA > dateB) return 1;
-
-                        // 2. If dates are the same, sort by creation timestamp (strict FIFO tie-breaker)
-                        const timeA = a.timestamp.toDate();
-                        const timeB = b.timestamp.toDate();
-                        if (timeA < timeB) return -1;
-                        if (timeA > timeB) return 1;
-                        return 0;
-                    });
-                    
-                    // 3. Iterate through sorted purchases and deduct stock
-                    const updates = [];
-                    for (const docData of availableStockData) { 
-                        if (remainingToDeduct <= 0) break;
-
-                        const docRef = docData.docRef; 
-                        const available = docData.remainingBags;
-
-                        if (!docRef) {
-                            // This guard should theoretically never hit if `availableStockData` is correctly built from `snapshot.docs`
-                            console.error("Internal Error: Missing document reference in transaction data.");
-                            throw new Error("Data corruption detected during transaction.");
-                        }
-
-                        if (remainingToDeduct >= available) {
-                            // Consume the entire lot
-                            remainingToDeduct -= available;
-                            updates.push({ docRef, newRemaining: 0 });
-                        } else {
-                            // Consume only what is needed from this lot
-                            const newRemaining = available - remainingToDeduct;
-                            remainingToDeduct = 0; // Deduction complete
-                            updates.push({ docRef, newRemaining });
-                        }
-                    }
-
-                    // 4. Check if deduction was fully satisfied
-                    if (remainingToDeduct > 0) {
-                        throw new Error(`Insufficient stock. Needed ${bagsUsed} but only ${bagsUsed - remainingToDeduct} bags could be deducted.`);
-                    }
-
-                    // 5. Apply all updates within the transaction
-                    for (const { docRef, newRemaining } of updates) {
-                        // docRef is guaranteed to be a DocumentReference here, preventing the 'path' error
-                        transaction.update(docRef, { remainingBags: newRemaining });
-                    }
-                    
-                    // 6. Log the Job record (also within the transaction for completeness)
-                    transaction.set(doc(jobsColRef), {
-                        bagsUsed: bagsUsed,
-                        address: document.getElementById('job-address').value,
-                        dateTimestamp: deductionDate,
-                        timestamp: serverTimestamp()
-                    });
-                });
+                // 1. Check stock validity and determine deductionValueons (in memory on the sorted data)
                 
-                // Success Modal/Message instead of alert
+                // Create a temporary, sorted copy of purchases that still have stock
+                const availableStock = [...purchases].filter(p => p.remainingBags > 0);
+                
+                if (availableStock.length === 0) {
+                    throw new Error("No stock available for deduction.");
+                }
+
+                for (const lot of availableStock) {
+                    if (remainingToDeduct <= 0) break;
+
+                    const lotPath = `${baseDataPath}/purchases/${lot.id}/remainingBags`;
+                    const available = lot.remainingBags;
+
+                    if (remainingToDeduct >= available) {
+                        // Consume the entire lot
+                        remainingToDeduct -= available;
+                        updates[lotPath] = 0;
+                    } else {
+                        // Consume only what is needed from this lot
+                        const newRemaining = available - remainingToDeduct;
+                        updates[lotPath] = newRemaining;
+                        remainingToDeduct = 0; // Deduction complete
+                    }
+                }
+
+                // 2. Check if deduction was fully satisfied
+                if (remainingToDeduct > 0) {
+                    throw new Error(`Insufficient stock. Needed ${bagsUsed} but only ${bagsUsed - remainingToDeduct} bags could be deducted.`);
+                }
+                
+                // 3. Add the Job record to the multi-path update
+                const newJobKey = push(ref(rtdb, `${baseDataPath}/jobs`)).key;
+                updates[`${baseDataPath}/jobs/${newJobKey}`] = {
+                    bagsUsed: bagsUsed,
+                    address: document.getElementById('job-address').value,
+                    date: dateString,
+                    timestamp: serverTimestamp() // RTDB server timestamp
+                };
+
+                // 4. Apply all updates using RTDB's atomic multi-path update
+                await update(ref(rtdb), updates);
+                
+                // Success Modal/Message
                 alertModal.show("Success!", `${bagsUsed} bags were successfully used and deducted following FIFO.`, 'success');
 
             } catch (error) {
-                // Check for insufficient stock error
-                if (error.message.includes("Insufficient stock") || error.message.includes("Data corruption")) {
+                if (error.message.includes("Insufficient stock")) {
                     alertModal.show("Deduction Failed", error.message, 'error');
                 } else {
-                    displayError("Transaction Failed: " + error.message);
+                    displayError("Deduction Failed: " + error.message);
                     alertModal.show("Deduction Failed", `An unexpected error occurred: ${error.message}`, 'error');
                 }
             } finally {
@@ -563,30 +529,26 @@
             const bags = parseInt(document.getElementById('purchase-bags').value);
             const costPerBag = parseFloat(document.getElementById('purchase-cost-per-bag').value);
             const dateString = document.getElementById('purchase-date').value;
-            const dateTimestamp = new Date(dateString);
-
+            
             if (bags <= 0 || costPerBag <= 0 || !dateString) {
                 return displayError("Please enter valid purchase details.");
             }
 
-            const baseRef = `/artifacts/${appId}/users/${userId}`;
-            const purchasesColRef = collection(db, `${baseRef}/stock_tracker_purchases`);
+            const purchasesRef = ref(rtdb, `artifacts/${appId}/users/${userId}/purchases`);
 
             purchaseSubmitBtn.disabled = true;
             purchaseSubmitBtn.textContent = 'Adding...';
 
             try {
-                await addDoc(purchasesColRef, {
+                await push(purchasesRef, {
                     originalBags: bags,
-                    remainingBags: bags, // Start with full stock remaining
+                    remainingBags: bags,
                     costPerBag: costPerBag,
-                    dateTimestamp: dateTimestamp,
+                    date: dateString, // Store date as string for easy sorting/comparison
                     timestamp: serverTimestamp() // Secondary timestamp for strict ordering
                 });
                 purchaseForm.reset();
-                // Re-set initial date value after successful form reset
                 setInitialFormValues();
-                // Success Modal/Message instead of alert
                 alertModal.show("Success!", `Added ${bags} bags at ${formatCurrency(costPerBag)} per bag.`, 'success');
             } catch (error) {
                 displayError("Failed to add purchase: " + error.message);
@@ -615,10 +577,9 @@
                  return;
             }
 
-            // Execute the FIFO deduction and job logging within a transaction
+            // Execute the FIFO deduction and job logging
             await processJobDeduction(bagsUsed, dateString);
             jobForm.reset();
-            // Re-set initial date value after successful form reset
             setInitialFormValues();
         });
 
