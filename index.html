@@ -163,10 +163,37 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, addDoc, onSnapshot, collection, query, orderBy, where, runTransaction, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // --- Firebase Configuration for External Hosting (GitHub) ---
+        //
+        // 🛑 IMPORTANT: Replace the "PASTE_YOUR_VALUE_HERE" strings below 
+        // with the actual credentials from your Firebase Project Settings.
+        const githubFirebaseConfig = {
+            // 1. Your Web API Key
+            apiKey: "AIzaSyCDaShKWel50m9BUdkHwZFn4hAGqLTz7K4", 
+            // 2. Your Auth Domain (e.g., project-12345.firebaseapp.com)
+            authDomain: "esteban-tracker.firebaseapp.com", 
+            // 3. Your Project ID
+            projectId: "esteban-tracker", 
+            // 4. Your App ID
+            appId: "1:378238803870:web:1a6883e4f0379d21dcc08f", 
+            
+            // These properties are optional but good practice to include
+            storageBucket: "esteban-tracker.firebasestorage.app", 
+            messagingSenderId: "378238803870", 
+        };
+
         // --- Global Variables and Firebase Setup ---
-        // MANDATORY: Use Canvas provided global variables
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        
+        // 1. Get configuration from Canvas global if available
+        const canvasFirebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+
+        // Prioritize Canvas config (if running in Canvas), otherwise use the hardcoded config for external hosting.
+        const firebaseConfig = canvasFirebaseConfig || githubFirebaseConfig;
+        
+        // Use Canvas App ID for Firestore path construction. Provide a good fallback for GitHub.
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'github-stock-tracker';
+        
+        // The initialAuthToken is only used inside the Canvas environment.
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
         // Set Firebase logging for debug (optional, but helpful)
@@ -235,6 +262,14 @@
 
         function initFirebase() {
             try {
+                // IMPORTANT: Check if config is complete before initializing
+                if (!firebaseConfig || !firebaseConfig.apiKey || firebaseConfig.apiKey.includes("PASTE_YOUR_VALUE_HERE")) {
+                    // This error means the user forgot to replace the placeholders when running externally
+                    if (canvasFirebaseConfig === null) {
+                        throw new Error("Missing Firebase Configuration. Please replace the 'PASTE_YOUR_VALUE_HERE' placeholders in the script.");
+                    }
+                }
+                
                 loadingSpinner.classList.remove('hidden');
                 app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
@@ -251,17 +286,21 @@
                         // Sign in if not authenticated
                         try {
                              if (initialAuthToken) {
+                                // Use custom token provided by Canvas
                                 await signInWithCustomToken(auth, initialAuthToken);
                             } else {
+                                // Fallback for external hosting: sign in anonymously
                                 await signInAnonymously(auth);
                             }
                         } catch (e) {
-                            displayError("Authentication failed. Data will not sync.");
+                            displayError("Authentication failed. Data will not sync. Check Firebase setup/rules.");
                         }
                     }
                 });
             } catch (e) {
-                displayError("Failed to initialize Firebase. Check console for details.");
+                // Catching the configuration error and displaying it clearly
+                displayError("Failed to initialize Firebase: " + e.message);
+                loadingSpinner.classList.add('hidden'); // Hide spinner on failure
             }
         }
 
