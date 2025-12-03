@@ -165,21 +165,14 @@
 
         // --- Firebase Configuration for External Hosting (GitHub) ---
         //
-        // 🛑 IMPORTANT: Replace the "PASTE_YOUR_VALUE_HERE" strings below 
-        // with the actual credentials from your Firebase Project Settings.
+        // This configuration has been updated with the user's specific project details.
         const githubFirebaseConfig = {
-            // 1. Your Web API Key
             apiKey: "AIzaSyCDaShKWel50m9BUdkHwZFn4hAGqLTz7K4", 
-            // 2. Your Auth Domain (e.g., project-12345.firebaseapp.com)
             authDomain: "esteban-tracker.firebaseapp.com", 
-            // 3. Your Project ID
             projectId: "esteban-tracker", 
-            // 4. Your App ID
             appId: "1:378238803870:web:1a6883e4f0379d21dcc08f", 
-            
-            // These properties are optional but good practice to include
+            // storageBucket is included for completeness but not strictly required by this app's services
             storageBucket: "esteban-tracker.firebasestorage.app", 
-            messagingSenderId: "378238803870", 
         };
 
         // --- Global Variables and Firebase Setup ---
@@ -263,11 +256,8 @@
         function initFirebase() {
             try {
                 // IMPORTANT: Check if config is complete before initializing
-                if (!firebaseConfig || !firebaseConfig.apiKey || firebaseConfig.apiKey.includes("PASTE_YOUR_VALUE_HERE")) {
-                    // This error means the user forgot to replace the placeholders when running externally
-                    if (canvasFirebaseConfig === null) {
-                        throw new Error("Missing Firebase Configuration. Please replace the 'PASTE_YOUR_VALUE_HERE' placeholders in the script.");
-                    }
+                if (!firebaseConfig || !firebaseConfig.apiKey) {
+                    throw new Error("Missing Firebase Configuration.");
                 }
                 
                 loadingSpinner.classList.remove('hidden');
@@ -316,7 +306,12 @@
             // 1. Listen for Purchases
             const purchasesQuery = query(purchasesColRef);
             onSnapshot(purchasesQuery, (snapshot) => {
-                purchases = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                // Map documents, storing the DocumentReference explicitly
+                purchases = snapshot.docs.map(doc => ({ 
+                    id: doc.id, 
+                    docRef: doc.ref, 
+                    ...doc.data() 
+                }));
                 
                 // IMPORTANT: Sort in JS for accurate FIFO and rendering
                 purchases.sort((a, b) => {
@@ -340,7 +335,6 @@
             });
 
             // 2. Listen for Jobs
-            // Jobs can still be ordered by a single field (timestamp)
             const jobsQuery = query(jobsColRef, orderBy('timestamp', 'desc'));
             onSnapshot(jobsQuery, (snapshot) => {
                 jobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -459,12 +453,12 @@
             try {
                 await runTransaction(db, async (transaction) => {
                     
-                    // 1. Get all available stock, index-safe query (only uses where/single inequality)
+                    // 1. Get all available stock, index-safe query
                     const q = query(purchasesColRef, 
-                        // Only fetch purchases with remainingBags > 0
                         where("remainingBags", ">", 0)
                     );
 
+                    // Fetch the documents inside the transaction
                     const snapshot = await transaction.get(q);
 
                     if (snapshot.empty) {
@@ -472,14 +466,16 @@
                     }
 
                     // 2. Prepare and sort the fetched stock in memory (FIFO order)
-                    const availableStockDocs = snapshot.docs.map(doc => ({ 
+                    // We must read the remainingBags value from the transaction snapshot.
+                    const availableStockData = snapshot.docs.map(doc => ({ 
                         id: doc.id, 
                         docRef: doc.ref, 
+                        // Fetching data from the document inside the transaction read
                         ...doc.data() 
                     }));
                     
                     // IMPORTANT: Sort in JS (FIFO order: dateTimestamp ASC, then timestamp ASC)
-                    availableStockDocs.sort((a, b) => {
+                    availableStockData.sort((a, b) => {
                         // 1. Sort by Purchase Date (FIFO primary key)
                         const dateA = a.dateTimestamp.toDate();
                         const dateB = b.dateTimestamp.toDate();
@@ -496,12 +492,17 @@
                     
                     // 3. Iterate through sorted purchases and deduct stock
                     const updates = [];
-                    for (const doc of availableStockDocs) { // Use the sorted array
+                    for (const docData of availableStockData) { 
                         if (remainingToDeduct <= 0) break;
 
-                        const purchase = doc;
-                        const docRef = doc.docRef;
-                        const available = purchase.remainingBags;
+                        const docRef = docData.docRef; 
+                        const available = docData.remainingBags;
+
+                        if (!docRef) {
+                            // This guard should theoretically never hit if `availableStockData` is correctly built from `snapshot.docs`
+                            console.error("Internal Error: Missing document reference in transaction data.");
+                            throw new Error("Data corruption detected during transaction.");
+                        }
 
                         if (remainingToDeduct >= available) {
                             // Consume the entire lot
@@ -522,6 +523,7 @@
 
                     // 5. Apply all updates within the transaction
                     for (const { docRef, newRemaining } of updates) {
+                        // docRef is guaranteed to be a DocumentReference here, preventing the 'path' error
                         transaction.update(docRef, { remainingBags: newRemaining });
                     }
                     
@@ -539,7 +541,7 @@
 
             } catch (error) {
                 // Check for insufficient stock error
-                if (error.message.includes("Insufficient stock")) {
+                if (error.message.includes("Insufficient stock") || error.message.includes("Data corruption")) {
                     alertModal.show("Deduction Failed", error.message, 'error');
                 } else {
                     displayError("Transaction Failed: " + error.message);
