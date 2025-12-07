@@ -230,7 +230,7 @@
 
         const formatDate = (dateValue) => {
              if (!dateValue) return 'N/A';
-             const date = new Date(dateValue);
+             const date = new Date(dateValue + 'T12:00:00');
              return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
         };
         const formatCurrency = (amount) => `$${amount.toFixed(2)}`;
@@ -686,3 +686,4 @@
     </script>
 </body>
 </html>
+
