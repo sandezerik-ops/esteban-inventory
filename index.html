@@ -230,7 +230,7 @@
 
         const formatDate = (dateValue) => {
              if (!dateValue) return 'N/A';
-             // 🌟 FIX from previous turn: Append T12:00:00 to prevent local time zone shift
+             // FIX: Append T12:00:00 to prevent local time zone shift
              const date = new Date(dateValue + 'T12:00:00');
              return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
         };
@@ -486,7 +486,6 @@
             }
 
             jobs.forEach(j => {
-                // 🌟 RENDER CHANGE: Display the recorded totalCost for the job
                 const totalCostHtml = j.totalCost !== undefined 
                     ? `<td class="px-6 py-4 whitespace-nowrap font-bold text-green-600">${formatCurrency(j.totalCost)}</td>`
                     : '<td class="px-6 py-4 whitespace-nowrap text-gray-500">N/A</td>';
@@ -510,7 +509,7 @@
             jobSubmitBtn.textContent = 'Processing...';
 
             let remainingToDeduct = bagsUsed;
-            let totalCostOfGoodsUsed = 0; // 🌟 NEW VARIABLE: To track the cost for this job
+            let totalCostOfGoodsUsed = 0; // To track the cost for this job
             const updates = {}; 
             const baseDataPath = `artifacts/${appId}/users/${userId}`;
 
@@ -532,7 +531,7 @@
                         // Use the entire lot (FIFO)
                         remainingToDeduct -= available;
                         updates[lotPath] = 0;
-                        // 🌟 COST CALCULATION: Add cost of the full lot
+                        // COST CALCULATION: Add cost of the full lot
                         totalCostOfGoodsUsed += available * lot.costPerBag; 
 
                     } else {
@@ -540,7 +539,7 @@
                         const deductedAmount = remainingToDeduct;
                         const newRemaining = available - deductedAmount;
                         updates[lotPath] = newRemaining;
-                        // 🌟 COST CALCULATION: Add cost of the portion used
+                        // COST CALCULATION: Add cost of the portion used
                         totalCostOfGoodsUsed += deductedAmount * lot.costPerBag; 
                         remainingToDeduct = 0; 
                     }
@@ -550,13 +549,13 @@
                     throw new Error(`Insufficient stock. Needed ${bagsUsed} but only ${bagsUsed - remainingToDeduct} bags could be deducted.`);
                 }
                 
-                // 🌟 JOB RECORD UPDATE: Include the calculated totalCostOfGoodsUsed
+                // JOB RECORD UPDATE: Include the calculated totalCostOfGoodsUsed
                 const newJobKey = push(ref(rtdb, `${baseDataPath}/jobs`)).key;
                 updates[`${baseDataPath}/jobs/${newJobKey}`] = {
                     bagsUsed: bagsUsed,
                     address: document.getElementById('job-address').value,
                     date: dateString,
-                    totalCost: totalCostOfGoodsUsed, // 🌟 NEW: Save the calculated FIFO cost
+                    totalCost: totalCostOfGoodsUsed, // Save the calculated FIFO cost
                     timestamp: serverTimestamp()
                 };
 
