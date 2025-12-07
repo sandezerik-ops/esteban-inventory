@@ -382,7 +382,7 @@
             }
         }
 
-        // --- Data Listeners & Render Functions (Remains the same) ---
+        // --- Data Listeners & Render Functions (The FIX is here in renderCurrentStock) ---
 
         function setupDataListeners() {
             if (!isAuthReady || !userId || !rtdb) return;
@@ -469,9 +469,10 @@
                 totalBagsRemaining += p.remainingBags;
                 totalValue += value;
 
+                // 🌟 FIX APPLIED: Ensure formatDate(p.date) is included as the first column.
                 const row = `
                     <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 whitespace-nowrap">${formatDate(p.date)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${formatDate(p.date)}</td> 
                         <td class="px-6 py-4 whitespace-nowrap">${p.originalBags}</td>
                         <td class="px-6 py-4 whitespace-nowrap font-bold text-blue-600">${p.remainingBags}</td>
                         <td class="px-6 py-4 whitespace-nowrap font-mono">${formatCurrency(p.costPerBag)}</td>
