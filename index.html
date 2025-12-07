@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FIFO Stock Tracker</title>
-    <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Custom styles for Inter font and general theme */
@@ -38,140 +37,152 @@
             <p class="text-gray-500 mt-1">First-In, First-Out Tracker for Bags/Units</p>
         </header>
 
-        <main id="app-container" class="max-w-7xl mx-auto space-y-8">
+        <main class="max-w-7xl mx-auto space-y-8">
+            
             <div id="loading-spinner" class="text-center text-gray-500 mt-10 hidden">
                 <div class="animate-spin inline-block w-8 h-8 border-4 border-t-blue-500 border-gray-200 rounded-full"></div>
                 <p class="mt-2">Connecting to storage...</p>
             </div>
             
-            <div id="auth-status" class="text-center text-sm text-gray-400 mb-4"></div>
+            <div id="auth-status" class="text-center text-sm mb-4">
+                <p class="text-gray-400">Loading authentication status...</p>
+            </div>
             <div id="error-message" class="hidden p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg" role="alert"></div>
 
-            <!-- Input Forms Grid -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-                <!-- 1. Add Purchase Form -->
-                <div class="card p-6">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-700">🛒 Add Purchase Bags</h2>
-                    <form id="purchase-form" class="space-y-4">
-                        <div>
-                            <label for="bags" class="block text-sm font-medium text-gray-700">Bags Purchased</label>
-                            <input type="number" id="purchase-bags" required min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
-                        </div>
-                        <div>
-                            <label for="cost-per-bag" class="block text-sm font-medium text-gray-700">Cost per Bag ($)</label>
-                            <input type="number" id="purchase-cost-per-bag" required min="0.01" step="0.01" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
-                        </div>
-                        <div>
-                            <label for="purchase-date" class="block text-sm font-medium text-gray-700">Purchase Date</label>
-                            <input type="date" id="purchase-date" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
-                        </div>
-                        <button type="submit" class="btn-primary w-full py-2 px-4 rounded-lg font-medium" id="purchase-submit-btn">Add Purchase</button>
-                    </form>
-                </div>
-
-                <!-- 2. Log Job Usage Form -->
-                <div class="card p-6">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-700">🛠️ Log Job Usage</h2>
-                    <form id="job-form" class="space-y-4">
-                        <div>
-                            <label for="job-bags-used" class="block text-sm font-medium text-gray-700">Bags Used</label>
-                            <input type="number" id="job-bags-used" required min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
-                        </div>
-                        <div>
-                            <label for="job-address" class="block text-sm font-medium text-gray-700">Job Address / Description</label>
-                            <input type="text" id="job-address" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
-                        </div>
-                        <div>
-                            <label for="job-date" class="block text-sm font-medium text-gray-700">Job Date</label>
-                            <input type="date" id="job-date" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
-                        </div>
-                        <button type="submit" class="btn-primary w-full py-2 px-4 rounded-lg font-medium" id="job-submit-btn">Log Usage</button>
-                    </form>
-                </div>
-
+            <div id="login-card" class="max-w-md mx-auto card p-6 hidden">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700 text-center">🔐 Login to Access Data</h2>
+                <form id="login-form" class="space-y-4">
+                    <div>
+                        <label for="login-email" class="block text-sm font-medium text-gray-700">Email</label>
+                        <input type="email" id="login-email" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label for="login-password" class="block text-sm font-medium text-gray-700">Password</label>
+                        <input type="password" id="login-password" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <button type="submit" class="btn-primary py-2 px-4 rounded-lg font-medium" id="sign-in-btn">Sign In</button>
+                        <button type="button" class="bg-gray-200 text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-gray-300 transition-colors" id="sign-up-btn">Sign Up (New User)</button>
+                    </div>
+                </form>
             </div>
 
-            <!-- Output Tables Grid -->
-            <div class="space-y-8">
-                 <!-- 3. Current Stock Table -->
-                <div class="card p-6">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-700">📦 Current Stock (FIFO)</h2>
-                    <div id="current-stock-summary" class="text-lg font-bold mb-4"></div>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purchase Date</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Original Bags</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remaining Bags</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost / Bag</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
-                                </tr>
-                            </thead>
-                            <tbody id="current-stock-table" class="bg-white divide-y divide-gray-200">
-                                <tr><td colspan="5" class="py-4 text-center text-gray-500">No stock found. Add a purchase above.</td></tr>
-                            </tbody>
-                        </table>
+            <div id="app-container" class="space-y-8 hidden">
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                    <div class="card p-6">
+                        <h2 class="text-xl font-semibold mb-4 text-gray-700">🛒 Add Purchase Bags</h2>
+                        <form id="purchase-form" class="space-y-4">
+                            <div>
+                                <label for="bags" class="block text-sm font-medium text-gray-700">Bags Purchased</label>
+                                <input type="number" id="purchase-bags" required min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label for="cost-per-bag" class="block text-sm font-medium text-gray-700">Cost per Bag ($)</label>
+                                <input type="number" id="purchase-cost-per-bag" required min="0.01" step="0.01" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label for="purchase-date" class="block text-sm font-medium text-gray-700">Purchase Date</label>
+                                <input type="date" id="purchase-date" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <button type="submit" class="btn-primary w-full py-2 px-4 rounded-lg font-medium" id="purchase-submit-btn">Add Purchase</button>
+                        </form>
+                    </div>
+
+                    <div class="card p-6">
+                        <h2 class="text-xl font-semibold mb-4 text-gray-700">🛠️ Log Job Usage</h2>
+                        <form id="job-form" class="space-y-4">
+                            <div>
+                                <label for="job-bags-used" class="block text-sm font-medium text-gray-700">Bags Used</label>
+                                <input type="number" id="job-bags-used" required min="1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label for="job-address" class="block text-sm font-medium text-gray-700">Job Address / Description</label>
+                                <input type="text" id="job-address" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label for="job-date" class="block text-sm font-medium text-gray-700">Job Date</label>
+                                <input type="date" id="job-date" required class="mt-1 block w-full rounded-md border-gray-300 shadow-sm p-2 border focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <button type="submit" class="btn-primary w-full py-2 px-4 rounded-lg font-medium" id="job-submit-btn">Log Usage</button>
+                        </form>
                     </div>
                 </div>
 
-                <!-- 4. Purchase History Table -->
-                <div class="card p-6">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-700">📜 Purchase History</h2>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bags Bought</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost / Bag</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Cost</th>
-                                </tr>
-                            </thead>
-                            <tbody id="purchase-history-table" class="bg-white divide-y divide-gray-200">
-                                <tr><td colspan="4" class="py-4 text-center text-gray-500">No purchase history available.</td></tr>
-                            </tbody>
-                        </table>
+                <div class="space-y-8">
+                        <div class="card p-6">
+                        <h2 class="text-xl font-semibold mb-4 text-gray-700">📦 Current Stock (FIFO)</h2>
+                        <div id="current-stock-summary" class="text-lg font-bold mb-4"></div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Purchase Date</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Original Bags</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remaining Bags</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost / Bag</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="current-stock-table" class="bg-white divide-y divide-gray-200">
+                                    <tr><td colspan="5" class="py-4 text-center text-gray-500">No stock found. Add a purchase above.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
 
-                <!-- 5. Job History Table -->
-                <div class="card p-6">
-                    <h2 class="text-xl font-semibold mb-4 text-gray-700">📋 Job Usage History</h2>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bags Used</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address/Desc</th>
-                                </tr>
-                            </thead>
-                            <tbody id="job-history-table" class="bg-white divide-y divide-gray-200">
-                                <tr><td colspan="3" class="py-4 text-center text-gray-500">No job history available.</td></tr>
-                            </tbody>
-                        </table>
+                    <div class="card p-6">
+                        <h2 class="text-xl font-semibold mb-4 text-gray-700">📜 Purchase History</h2>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bags Bought</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost / Bag</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Cost</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="purchase-history-table" class="bg-white divide-y divide-gray-200">
+                                    <tr><td colspan="4" class="py-4 text-center text-gray-500">No purchase history available.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card p-6">
+                        <h2 class="text-xl font-semibold mb-4 text-gray-700">📋 Job Usage History</h2>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bags Used</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address/Desc</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="job-history-table" class="bg-white divide-y divide-gray-200">
+                                    <tr><td colspan="3" class="py-4 text-center text-gray-500">No job history available.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </main>
+            </div> </main>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        // 🚨 ADDED: signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         // *** REALTIME DATABASE IMPORTS ***
-        // Removed setLogLevel from import list as it caused a SyntaxError.
         import { getDatabase, ref, push, update, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
         // --- Firebase Configuration for External Hosting (GitHub) ---
-        //
-        // This configuration has been updated with the user's specific project details.
         const githubFirebaseConfig = {
             apiKey: "AIzaSyCDaShKWel50m9BUdkHwZFn4hAGqLTz7K4", 
             authDomain: "esteban-tracker.firebaseapp.com", 
-            // Crucial for RTDB: databaseURL must be present
             databaseURL: "https://esteban-tracker-default-rtdb.firebaseio.com", 
             projectId: "esteban-tracker", 
             appId: "1:378238803870:web:1a6883e4f0379d21dcc08f", 
@@ -179,24 +190,11 @@
         };
 
         // --- Global Variables and Firebase Setup ---
-        
-        // 1. Get configuration from Canvas global if available
         const canvasFirebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-
-        // Prioritize Canvas config (if running in Canvas), otherwise use the hardcoded config for external hosting.
         const firebaseConfig = canvasFirebaseConfig || githubFirebaseConfig;
-        
-        // Use Canvas App ID for RTDB path construction. Provide a good fallback for GitHub.
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'github-stock-tracker';
-        
-        // The initialAuthToken is only used inside the Canvas environment.
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-        // Set Firebase logging for debug (optional, but helpful)
-        // setLogLevel('debug'); // Removed to fix SyntaxError
-        // Note: RTDB logging is less verbose via this method
-
-        // Renamed 'db' (Firestore) to 'rtdb' (Realtime Database)
         let app, rtdb, auth;
         let userId = null;
         let isAuthReady = false;
@@ -209,6 +207,11 @@
         const loadingSpinner = document.getElementById('loading-spinner');
         const authStatusEl = document.getElementById('auth-status');
         const errorEl = document.getElementById('error-message');
+        const appContainer = document.getElementById('app-container'); // NEW
+        const loginCard = document.getElementById('login-card'); // NEW
+        const loginForm = document.getElementById('login-form'); // NEW
+        const signInBtn = document.getElementById('sign-in-btn'); // NEW
+        const signUpBtn = document.getElementById('sign-up-btn'); // NEW
         const purchaseForm = document.getElementById('purchase-form');
         const jobForm = document.getElementById('job-form');
         const purchaseSubmitBtn = document.getElementById('purchase-submit-btn');
@@ -220,23 +223,21 @@
             errorEl.textContent = "Error: " + message;
             errorEl.classList.remove('hidden');
         }
+        function clearError() {
+            errorEl.textContent = "";
+            errorEl.classList.add('hidden');
+        }
 
-        // Utility to format dates
+        // Utility to format dates and currency (omitted for brevity, assume they are still there)
         const formatDate = (dateValue) => {
-            if (!dateValue) return 'N/A';
-            // In RTDB, dateValue is typically an ISO string or number (timestamp ms)
-            const date = new Date(dateValue);
-            return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+             if (!dateValue) return 'N/A';
+             const date = new Date(dateValue);
+             return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
         };
-        
-        // Utility to format currency
         const formatCurrency = (amount) => `$${amount.toFixed(2)}`;
 
         // --- Date and Form Setup ---
 
-        /**
-         * Gets today's date formatted as YYYY-MM-DD for input fields.
-         */
         function getTodayDateString() {
             const today = new Date();
             const year = today.getFullYear();
@@ -245,13 +246,98 @@
             return `${year}-${month}-${day}`;
         }
 
-        /**
-         * Sets the default value for date input fields to today's date.
-         */
         function setInitialFormValues() {
             const todayString = getTodayDateString();
             document.getElementById('purchase-date').value = todayString;
             document.getElementById('job-date').value = todayString;
+        }
+
+        // --- UI State Management ---
+        function updateUI(user) {
+            clearError();
+            if (user) {
+                // Logged In
+                userId = user.uid;
+                
+                // Check if it's the anonymous user for the external fallback
+                const isAnonymous = user.isAnonymous; 
+                const authMethod = isAnonymous ? "Anonymous" : "Email/Password";
+                
+                authStatusEl.innerHTML = `
+                    <p class="text-sm text-gray-600 font-medium">Signed in as: ${authMethod} User ID: ${userId.substring(0, 8)}...</p>
+                    <button id="sign-out-btn" class="text-xs text-red-500 hover:text-red-700 underline mt-1">Sign Out</button>
+                `;
+                document.getElementById('sign-out-btn').onclick = handleSignOut;
+
+                loginCard.classList.add('hidden');
+                appContainer.classList.remove('hidden');
+                isAuthReady = true;
+                setupDataListeners();
+            } else {
+                // Logged Out
+                userId = null;
+                authStatusEl.innerHTML = '<p class="text-gray-400">Please sign in to access your data.</p>';
+                loginCard.classList.remove('hidden');
+                appContainer.classList.add('hidden');
+                isAuthReady = false;
+                // Clear data to prevent anonymous data bleed
+                purchases = [];
+                jobs = [];
+                renderAllTables();
+                renderJobHistory();
+            }
+            loadingSpinner.classList.add('hidden');
+        }
+        
+        // --- Firebase Auth Functions ---
+
+        async function handleEmailPasswordSignIn(e) {
+            e.preventDefault();
+            signInBtn.disabled = true;
+            signInBtn.textContent = 'Signing In...';
+            clearError();
+
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                alertModal.show("Welcome Back!", "You have successfully signed in.", 'success');
+            } catch (error) {
+                displayError("Sign In Failed: " + error.message);
+            } finally {
+                signInBtn.disabled = false;
+                signInBtn.textContent = 'Sign In';
+            }
+        }
+
+        async function handleEmailPasswordSignUp() {
+            signUpBtn.disabled = true;
+            signUpBtn.textContent = 'Registering...';
+            clearError();
+
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+                alertModal.show("Registration Successful!", "Your account has been created and you are now signed in.", 'success');
+            } catch (error) {
+                displayError("Sign Up Failed: " + error.message);
+            } finally {
+                signUpBtn.disabled = false;
+                signUpBtn.textContent = 'Sign Up (New User)';
+            }
+        }
+
+        async function handleSignOut() {
+            try {
+                await signOut(auth);
+                alertModal.show("Signed Out", "You have been signed out.", 'info');
+                // The onAuthStateChanged listener will handle the UI update
+            } catch (error) {
+                displayError("Sign Out Failed: " + error.message);
+            }
         }
 
         // --- Firebase Initialization and Authentication ---
@@ -265,28 +351,42 @@
                 loadingSpinner.classList.remove('hidden');
                 app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
-                // Initialize Realtime Database
                 rtdb = getDatabase(app); 
                 
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
-                        userId = user.uid;
-                        authStatusEl.textContent = `User ID: ${userId}. Data is stored privately in RTDB.`;
-                        isAuthReady = true;
-                        loadingSpinner.classList.add('hidden');
-                        setupDataListeners();
+                        // User is signed in (either Email/Password, Custom, or Anonymous)
+                        updateUI(user);
                     } else {
-                        // Sign in if not authenticated
-                        try {
-                             if (initialAuthToken) {
-                                // Use custom token provided by Canvas
-                                await signInWithCustomToken(auth, initialAuthToken);
-                            } else {
-                                // Fallback for external hosting: sign in anonymously
-                                await signInAnonymously(auth);
+                        // User is signed out. Attempt anonymous/custom sign-in only once if needed.
+                        if (!userId) { // Check if we haven't tried to auto-sign-in yet
+                            try {
+                                if (initialAuthToken) {
+                                    // Use custom token provided by Canvas
+                                    await signInWithCustomToken(auth, initialAuthToken);
+                                } else {
+                                    // Fallback for external hosting: sign in anonymously and show login card
+                                    const anonUser = await signInAnonymously(auth);
+                                    // If using anonymous sign-in, we still show the login card 
+                                    // and hide the main app until a proper email/password sign-in occurs 
+                                    // (unless you intend to let anonymous users access the app fully).
+                                    // For this solution, we only hide the main app if no proper user is logged in.
+                                    // Let the updateUI handle the state.
+                                    updateUI(anonUser.user);
+
+                                    // Special logic for anonymous users: hide app, show login
+                                    if(anonUser.user.isAnonymous) {
+                                        appContainer.classList.add('hidden');
+                                        loginCard.classList.remove('hidden');
+                                        authStatusEl.innerHTML = '<p class="text-sm text-yellow-600 font-medium">Currently using temporary storage. <span class="text-red-500">Log in/Sign Up</span> to save your data permanently.</p>';
+                                    }
+                                }
+                            } catch (e) {
+                                displayError("Authentication failed. Data will not sync. Check Firebase setup/rules.");
+                                updateUI(null);
                             }
-                        } catch (e) {
-                            displayError("Authentication failed. Data will not sync. Check Firebase setup/rules.");
+                        } else {
+                             updateUI(null); // Truly signed out
                         }
                     }
                 });
@@ -296,8 +396,10 @@
             }
         }
 
-        // --- Realtime Database Listeners ---
+        // --- All other functions (setupDataListeners, renderAllTables, processJobDeduction, etc.) remain the same. ---
 
+        // (setupDataListeners, renderAllTables, renderPurchaseHistory, renderCurrentStock, renderJobHistory, processJobDeduction)
+        // ... (The rest of your existing JavaScript code) ...
         function setupDataListeners() {
             if (!isAuthReady || !userId || !rtdb) return;
 
@@ -351,9 +453,7 @@
                 displayError("Failed to fetch jobs: " + error.message);
             });
         }
-
-        // --- Data Rendering (No change needed, only date format adjusted) ---
-
+        
         function renderAllTables() {
             renderPurchaseHistory();
             renderCurrentStock();
@@ -442,26 +542,16 @@
 
 
         // --- Stock Management Logic (FIFO & RTDB Multi-path Update) ---
-
-        /**
-         * The core FIFO deduction logic, executed as an atomic multi-path RTDB update.
-         * Note: RTDB multi-path updates are NOT atomic across reads and writes.
-         * We rely on the speed of the operation and the UI's quick update via onValue.
-         * @param {number} bagsUsed - The total number of bags to deduct.
-         * @param {string} dateString - The date of the usage job (YYYY-MM-DD).
-         */
         async function processJobDeduction(bagsUsed, dateString) {
             jobSubmitBtn.disabled = true;
             jobSubmitBtn.textContent = 'Processing...';
 
             let remainingToDeduct = bagsUsed;
-            const updates = {}; // Map of paths to update, e.g., {'purchases/key1/remainingBags': 0}
+            const updates = {}; 
             const baseDataPath = `artifacts/${appId}/users/${userId}`;
 
             try {
                 // 1. Check stock validity and determine deductionValueons (in memory on the sorted data)
-                
-                // Create a temporary, sorted copy of purchases that still have stock
                 const availableStock = [...purchases].filter(p => p.remainingBags > 0);
                 
                 if (availableStock.length === 0) {
@@ -521,6 +611,9 @@
 
 
         // --- Form Submission Handlers ---
+
+        loginForm.addEventListener('submit', handleEmailPasswordSignIn);
+        signUpBtn.addEventListener('click', handleEmailPasswordSignUp);
 
         purchaseForm.addEventListener('submit', async (e) => {
             e.preventDefault();
