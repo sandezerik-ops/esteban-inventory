@@ -159,11 +159,12 @@
                                     <tr>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bags Used</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cost of Goods Used</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address/Desc</th>
                                     </tr>
                                 </thead>
                                 <tbody id="job-history-table" class="bg-white divide-y divide-gray-200">
-                                    <tr><td colspan="3" class="py-4 text-center text-gray-500">No job history available.</td></tr>
+                                    <tr><td colspan="4" class="py-4 text-center text-gray-500">No job history available.</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -174,7 +175,6 @@
     </div>
 
     <script type="module">
-        // 🚨 UPDATED IMPORTS: Removed signInAnonymously
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithCustomToken, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getDatabase, ref, push, update, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
@@ -217,7 +217,7 @@
         const purchaseSubmitBtn = document.getElementById('purchase-submit-btn');
         const jobSubmitBtn = document.getElementById('job-submit-btn');
 
-        // Utility functions (omitted for brevity, defined in the original)
+        // Utility functions
         function displayError(message) {
             console.error("App Error:", message);
             errorEl.textContent = "Error: " + message;
@@ -230,6 +230,7 @@
 
         const formatDate = (dateValue) => {
              if (!dateValue) return 'N/A';
+             // 🌟 FIX from previous turn: Append T12:00:00 to prevent local time zone shift
              const date = new Date(dateValue + 'T12:00:00');
              return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
         };
@@ -249,11 +250,10 @@
             document.getElementById('job-date').value = todayString;
         }
 
-        // --- UI State Management ---
+        // --- UI State Management (Unchanged) ---
         function updateUI(user) {
             clearError();
             if (user) {
-                // Logged In
                 userId = user.uid;
                 
                 const authMethod = user.email ? "Email/Password" : "Custom Token";
@@ -269,13 +269,11 @@
                 isAuthReady = true;
                 setupDataListeners();
             } else {
-                // Logged Out
                 userId = null;
                 authStatusEl.innerHTML = '<p class="text-gray-400">Please sign in to access your data.</p>';
                 loginCard.classList.remove('hidden');
                 appContainer.classList.add('hidden');
                 isAuthReady = false;
-                // Clear data
                 purchases = [];
                 jobs = [];
                 renderAllTables();
@@ -284,7 +282,7 @@
             loadingSpinner.classList.add('hidden');
         }
         
-        // --- Firebase Auth Functions ---
+        // --- Firebase Auth Functions (Unchanged) ---
 
         async function handleEmailPasswordSignIn(e) {
             e.preventDefault();
@@ -299,7 +297,6 @@
                 await signInWithEmailAndPassword(auth, email, password);
                 alertModal.show("Welcome Back!", "You have successfully signed in.", 'success');
             } catch (error) {
-                // Firebase error codes are often in the message, e.g., "auth/wrong-password"
                 let errorMessage = error.message.includes('auth/') 
                     ? "Invalid credentials. Please check email and password." 
                     : error.message;
@@ -320,7 +317,6 @@
             const password = document.getElementById('login-password').value;
 
             try {
-                // Firebase automatically logs in the user after successful sign-up
                 await createUserWithEmailAndPassword(auth, email, password);
                 alertModal.show("Registration Successful!", "Your account has been created and you are now signed in.", 'success');
             } catch (error) {
@@ -343,7 +339,7 @@
             }
         }
 
-        // --- Firebase Initialization and Authentication ---
+        // --- Firebase Initialization and Authentication (Unchanged) ---
 
         function initFirebase() {
             try {
@@ -358,20 +354,16 @@
                 
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
-                        // User is signed in (Email/Password or Custom Token)
                         updateUI(user);
                     } else {
-                        // User is signed out. Check for Custom Token (Canvas), otherwise show login.
                         if (initialAuthToken) {
                             try {
-                                // Attempt Custom Token sign-in
                                 await signInWithCustomToken(auth, initialAuthToken);
                             } catch (e) {
                                 displayError("Custom token sign-in failed. Check security settings.");
-                                updateUI(null); // Show login if custom token fails
+                                updateUI(null);
                             }
                         } else {
-                            // If no Custom Token and no current user, update UI to show login card
                             updateUI(null); 
                         }
                     }
@@ -382,7 +374,7 @@
             }
         }
 
-        // --- Data Listeners & Render Functions (The FIX is here in renderCurrentStock) ---
+        // --- Data Listeners & Render Functions ---
 
         function setupDataListeners() {
             if (!isAuthReady || !userId || !rtdb) return;
@@ -469,7 +461,6 @@
                 totalBagsRemaining += p.remainingBags;
                 totalValue += value;
 
-                // 🌟 FIX APPLIED: Ensure formatDate(p.date) is included as the first column.
                 const row = `
                     <tr class="hover:bg-gray-50">
                         <td class="px-6 py-4 whitespace-nowrap">${formatDate(p.date)}</td> 
@@ -490,15 +481,21 @@
             tbody.innerHTML = '';
 
             if (jobs.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3" class="py-4 text-center text-gray-500">No job history available.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-gray-500">No job history available.</td></tr>';
                 return;
             }
 
             jobs.forEach(j => {
+                // 🌟 RENDER CHANGE: Display the recorded totalCost for the job
+                const totalCostHtml = j.totalCost !== undefined 
+                    ? `<td class="px-6 py-4 whitespace-nowrap font-bold text-green-600">${formatCurrency(j.totalCost)}</td>`
+                    : '<td class="px-6 py-4 whitespace-nowrap text-gray-500">N/A</td>';
+
                 const row = `
                     <tr class="hover:bg-gray-50">
                         <td class="px-6 py-4 whitespace-nowrap">${formatDate(j.date)}</td>
                         <td class="px-6 py-4 whitespace-nowrap font-bold text-red-600">${j.bagsUsed}</td>
+                        ${totalCostHtml}
                         <td class="px-6 py-4 whitespace-nowrap">${j.address}</td>
                     </tr>
                 `;
@@ -513,10 +510,12 @@
             jobSubmitBtn.textContent = 'Processing...';
 
             let remainingToDeduct = bagsUsed;
+            let totalCostOfGoodsUsed = 0; // 🌟 NEW VARIABLE: To track the cost for this job
             const updates = {}; 
             const baseDataPath = `artifacts/${appId}/users/${userId}`;
 
             try {
+                // Create a shallow copy of purchases, sorted FIFO
                 const availableStock = [...purchases].filter(p => p.remainingBags > 0);
                 
                 if (availableStock.length === 0) {
@@ -530,11 +529,19 @@
                     const available = lot.remainingBags;
 
                     if (remainingToDeduct >= available) {
+                        // Use the entire lot (FIFO)
                         remainingToDeduct -= available;
                         updates[lotPath] = 0;
+                        // 🌟 COST CALCULATION: Add cost of the full lot
+                        totalCostOfGoodsUsed += available * lot.costPerBag; 
+
                     } else {
-                        const newRemaining = available - remainingToDeduct;
+                        // Use only a portion of the lot
+                        const deductedAmount = remainingToDeduct;
+                        const newRemaining = available - deductedAmount;
                         updates[lotPath] = newRemaining;
+                        // 🌟 COST CALCULATION: Add cost of the portion used
+                        totalCostOfGoodsUsed += deductedAmount * lot.costPerBag; 
                         remainingToDeduct = 0; 
                     }
                 }
@@ -543,17 +550,19 @@
                     throw new Error(`Insufficient stock. Needed ${bagsUsed} but only ${bagsUsed - remainingToDeduct} bags could be deducted.`);
                 }
                 
+                // 🌟 JOB RECORD UPDATE: Include the calculated totalCostOfGoodsUsed
                 const newJobKey = push(ref(rtdb, `${baseDataPath}/jobs`)).key;
                 updates[`${baseDataPath}/jobs/${newJobKey}`] = {
                     bagsUsed: bagsUsed,
                     address: document.getElementById('job-address').value,
                     date: dateString,
+                    totalCost: totalCostOfGoodsUsed, // 🌟 NEW: Save the calculated FIFO cost
                     timestamp: serverTimestamp()
                 };
 
                 await update(ref(rtdb), updates);
                 
-                alertModal.show("Success!", `${bagsUsed} bags were successfully used and deducted following FIFO.`, 'success');
+                alertModal.show("Success!", `${bagsUsed} bags were successfully used and deducted following FIFO. Total Cost of Goods Used: ${formatCurrency(totalCostOfGoodsUsed)}`, 'success');
 
             } catch (error) {
                 if (error.message.includes("Insufficient stock")) {
@@ -569,7 +578,7 @@
         }
 
 
-        // --- Form Submission Handlers ---
+        // --- Form Submission Handlers (Unchanged, just uses the updated processJobDeduction) ---
 
         loginForm.addEventListener('submit', handleEmailPasswordSignIn);
         signUpBtn.addEventListener('click', handleEmailPasswordSignUp);
@@ -633,7 +642,7 @@
             setInitialFormValues();
         });
 
-        // --- Custom Alert Modal (Remains the same) ---
+        // --- Custom Alert Modal (Unchanged) ---
 
         const alertModal = (function() {
             const modalHtml = `
@@ -686,4 +695,3 @@
     </script>
 </body>
 </html>
-
