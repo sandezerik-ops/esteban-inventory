@@ -49,7 +49,7 @@
             </div>
             <div id="error-message" class="hidden p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg" role="alert"></div>
 
-            <div id="login-card" class="max-w-md mx-auto card p-6 hidden">
+            <div id="login-card" class="max-w-md mx-auto card p-6">
                 <h2 class="text-xl font-semibold mb-4 text-gray-700 text-center">🔐 Login to Access Data</h2>
                 <form id="login-form" class="space-y-4">
                     <div>
@@ -169,14 +169,14 @@
                         </div>
                     </div>
                 </div>
-            </div> </main>
+            </div>
+        </main>
     </div>
 
     <script type="module">
+        // 🚨 UPDATED IMPORTS: Removed signInAnonymously
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        // 🚨 ADDED: signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        // *** REALTIME DATABASE IMPORTS ***
+        import { getAuth, signInWithCustomToken, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getDatabase, ref, push, update, onValue, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
         // --- Firebase Configuration for External Hosting (GitHub) ---
@@ -207,17 +207,17 @@
         const loadingSpinner = document.getElementById('loading-spinner');
         const authStatusEl = document.getElementById('auth-status');
         const errorEl = document.getElementById('error-message');
-        const appContainer = document.getElementById('app-container'); // NEW
-        const loginCard = document.getElementById('login-card'); // NEW
-        const loginForm = document.getElementById('login-form'); // NEW
-        const signInBtn = document.getElementById('sign-in-btn'); // NEW
-        const signUpBtn = document.getElementById('sign-up-btn'); // NEW
+        const appContainer = document.getElementById('app-container');
+        const loginCard = document.getElementById('login-card');
+        const loginForm = document.getElementById('login-form');
+        const signInBtn = document.getElementById('sign-in-btn');
+        const signUpBtn = document.getElementById('sign-up-btn');
         const purchaseForm = document.getElementById('purchase-form');
         const jobForm = document.getElementById('job-form');
         const purchaseSubmitBtn = document.getElementById('purchase-submit-btn');
         const jobSubmitBtn = document.getElementById('job-submit-btn');
 
-        // Utility to display errors in the UI
+        // Utility functions (omitted for brevity, defined in the original)
         function displayError(message) {
             console.error("App Error:", message);
             errorEl.textContent = "Error: " + message;
@@ -228,16 +228,13 @@
             errorEl.classList.add('hidden');
         }
 
-        // Utility to format dates and currency (omitted for brevity, assume they are still there)
         const formatDate = (dateValue) => {
              if (!dateValue) return 'N/A';
              const date = new Date(dateValue);
              return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
         };
         const formatCurrency = (amount) => `$${amount.toFixed(2)}`;
-
-        // --- Date and Form Setup ---
-
+        
         function getTodayDateString() {
             const today = new Date();
             const year = today.getFullYear();
@@ -259,9 +256,7 @@
                 // Logged In
                 userId = user.uid;
                 
-                // Check if it's the anonymous user for the external fallback
-                const isAnonymous = user.isAnonymous; 
-                const authMethod = isAnonymous ? "Anonymous" : "Email/Password";
+                const authMethod = user.email ? "Email/Password" : "Custom Token";
                 
                 authStatusEl.innerHTML = `
                     <p class="text-sm text-gray-600 font-medium">Signed in as: ${authMethod} User ID: ${userId.substring(0, 8)}...</p>
@@ -280,7 +275,7 @@
                 loginCard.classList.remove('hidden');
                 appContainer.classList.add('hidden');
                 isAuthReady = false;
-                // Clear data to prevent anonymous data bleed
+                // Clear data
                 purchases = [];
                 jobs = [];
                 renderAllTables();
@@ -304,7 +299,12 @@
                 await signInWithEmailAndPassword(auth, email, password);
                 alertModal.show("Welcome Back!", "You have successfully signed in.", 'success');
             } catch (error) {
-                displayError("Sign In Failed: " + error.message);
+                // Firebase error codes are often in the message, e.g., "auth/wrong-password"
+                let errorMessage = error.message.includes('auth/') 
+                    ? "Invalid credentials. Please check email and password." 
+                    : error.message;
+
+                displayError("Sign In Failed: " + errorMessage);
             } finally {
                 signInBtn.disabled = false;
                 signInBtn.textContent = 'Sign In';
@@ -320,10 +320,14 @@
             const password = document.getElementById('login-password').value;
 
             try {
+                // Firebase automatically logs in the user after successful sign-up
                 await createUserWithEmailAndPassword(auth, email, password);
                 alertModal.show("Registration Successful!", "Your account has been created and you are now signed in.", 'success');
             } catch (error) {
-                displayError("Sign Up Failed: " + error.message);
+                 let errorMessage = error.message.includes('auth/') 
+                    ? "Registration failed. Password must be 6+ chars, email must be valid." 
+                    : error.message;
+                displayError("Sign Up Failed: " + errorMessage);
             } finally {
                 signUpBtn.disabled = false;
                 signUpBtn.textContent = 'Sign Up (New User)';
@@ -334,7 +338,6 @@
             try {
                 await signOut(auth);
                 alertModal.show("Signed Out", "You have been signed out.", 'info');
-                // The onAuthStateChanged listener will handle the UI update
             } catch (error) {
                 displayError("Sign Out Failed: " + error.message);
             }
@@ -355,38 +358,21 @@
                 
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
-                        // User is signed in (either Email/Password, Custom, or Anonymous)
+                        // User is signed in (Email/Password or Custom Token)
                         updateUI(user);
                     } else {
-                        // User is signed out. Attempt anonymous/custom sign-in only once if needed.
-                        if (!userId) { // Check if we haven't tried to auto-sign-in yet
+                        // User is signed out. Check for Custom Token (Canvas), otherwise show login.
+                        if (initialAuthToken) {
                             try {
-                                if (initialAuthToken) {
-                                    // Use custom token provided by Canvas
-                                    await signInWithCustomToken(auth, initialAuthToken);
-                                } else {
-                                    // Fallback for external hosting: sign in anonymously and show login card
-                                    const anonUser = await signInAnonymously(auth);
-                                    // If using anonymous sign-in, we still show the login card 
-                                    // and hide the main app until a proper email/password sign-in occurs 
-                                    // (unless you intend to let anonymous users access the app fully).
-                                    // For this solution, we only hide the main app if no proper user is logged in.
-                                    // Let the updateUI handle the state.
-                                    updateUI(anonUser.user);
-
-                                    // Special logic for anonymous users: hide app, show login
-                                    if(anonUser.user.isAnonymous) {
-                                        appContainer.classList.add('hidden');
-                                        loginCard.classList.remove('hidden');
-                                        authStatusEl.innerHTML = '<p class="text-sm text-yellow-600 font-medium">Currently using temporary storage. <span class="text-red-500">Log in/Sign Up</span> to save your data permanently.</p>';
-                                    }
-                                }
+                                // Attempt Custom Token sign-in
+                                await signInWithCustomToken(auth, initialAuthToken);
                             } catch (e) {
-                                displayError("Authentication failed. Data will not sync. Check Firebase setup/rules.");
-                                updateUI(null);
+                                displayError("Custom token sign-in failed. Check security settings.");
+                                updateUI(null); // Show login if custom token fails
                             }
                         } else {
-                             updateUI(null); // Truly signed out
+                            // If no Custom Token and no current user, update UI to show login card
+                            updateUI(null); 
                         }
                     }
                 });
@@ -396,35 +382,22 @@
             }
         }
 
-        // --- All other functions (setupDataListeners, renderAllTables, processJobDeduction, etc.) remain the same. ---
+        // --- Data Listeners & Render Functions (Remains the same) ---
 
-        // (setupDataListeners, renderAllTables, renderPurchaseHistory, renderCurrentStock, renderJobHistory, processJobDeduction)
-        // ... (The rest of your existing JavaScript code) ...
         function setupDataListeners() {
             if (!isAuthReady || !userId || !rtdb) return;
 
-            // RTDB Paths: /artifacts/{appId}/users/{userId}/purchases
             const purchasesRef = ref(rtdb, `artifacts/${appId}/users/${userId}/purchases`);
             const jobsRef = ref(rtdb, `artifacts/${appId}/users/${userId}/jobs`);
 
-            // 1. Listen for Purchases
             onValue(purchasesRef, (snapshot) => {
                 const purchasesObj = snapshot.val() || {};
                 
-                // Convert RTDB object map to a sortable array
-                purchases = Object.keys(purchasesObj).map(key => ({
-                    id: key, 
-                    ...purchasesObj[key]
-                }));
+                purchases = Object.keys(purchasesObj).map(key => ({ id: key, ...purchasesObj[key] }));
                 
-                // IMPORTANT: Sort in JS for accurate FIFO and rendering
                 purchases.sort((a, b) => {
-                    // 1. Sort by Purchase Date string (FIFO primary key)
                     if (a.date < b.date) return -1;
                     if (a.date > b.date) return 1;
-                    
-                    // 2. If dates are the same, sort by creation timestamp (strict FIFO tie-breaker)
-                    // RTDB timestamp is stored as milliseconds since epoch
                     if (a.timestamp < b.timestamp) return -1;
                     if (a.timestamp > b.timestamp) return 1;
                     return 0;
@@ -435,17 +408,10 @@
                 displayError("Failed to fetch purchases: " + error.message);
             });
 
-            // 2. Listen for Jobs
             onValue(jobsRef, (snapshot) => {
                 const jobsObj = snapshot.val() || {};
                 
-                // Convert RTDB object map to an array and sort by timestamp (descending)
-                jobs = Object.keys(jobsObj).map(key => ({
-                    id: key,
-                    ...jobsObj[key]
-                }));
-
-                // Sort jobs by timestamp descending
+                jobs = Object.keys(jobsObj).map(key => ({ id: key, ...jobsObj[key] }));
                 jobs.sort((a, b) => b.timestamp - a.timestamp); 
 
                 renderJobHistory();
@@ -487,7 +453,6 @@
             const summaryEl = document.getElementById('current-stock-summary');
             tbody.innerHTML = '';
             
-            // Only show purchases with remaining bags > 0
             const currentStock = purchases.filter(p => p.remainingBags > 0);
             
             let totalBagsRemaining = 0;
@@ -551,7 +516,6 @@
             const baseDataPath = `artifacts/${appId}/users/${userId}`;
 
             try {
-                // 1. Check stock validity and determine deductionValueons (in memory on the sorted data)
                 const availableStock = [...purchases].filter(p => p.remainingBags > 0);
                 
                 if (availableStock.length === 0) {
@@ -565,35 +529,29 @@
                     const available = lot.remainingBags;
 
                     if (remainingToDeduct >= available) {
-                        // Consume the entire lot
                         remainingToDeduct -= available;
                         updates[lotPath] = 0;
                     } else {
-                        // Consume only what is needed from this lot
                         const newRemaining = available - remainingToDeduct;
                         updates[lotPath] = newRemaining;
-                        remainingToDeduct = 0; // Deduction complete
+                        remainingToDeduct = 0; 
                     }
                 }
 
-                // 2. Check if deduction was fully satisfied
                 if (remainingToDeduct > 0) {
                     throw new Error(`Insufficient stock. Needed ${bagsUsed} but only ${bagsUsed - remainingToDeduct} bags could be deducted.`);
                 }
                 
-                // 3. Add the Job record to the multi-path update
                 const newJobKey = push(ref(rtdb, `${baseDataPath}/jobs`)).key;
                 updates[`${baseDataPath}/jobs/${newJobKey}`] = {
                     bagsUsed: bagsUsed,
                     address: document.getElementById('job-address').value,
                     date: dateString,
-                    timestamp: serverTimestamp() // RTDB server timestamp
+                    timestamp: serverTimestamp()
                 };
 
-                // 4. Apply all updates using RTDB's atomic multi-path update
                 await update(ref(rtdb), updates);
                 
-                // Success Modal/Message
                 alertModal.show("Success!", `${bagsUsed} bags were successfully used and deducted following FIFO.`, 'success');
 
             } catch (error) {
@@ -637,8 +595,8 @@
                     originalBags: bags,
                     remainingBags: bags,
                     costPerBag: costPerBag,
-                    date: dateString, // Store date as string for easy sorting/comparison
-                    timestamp: serverTimestamp() // Secondary timestamp for strict ordering
+                    date: dateString, 
+                    timestamp: serverTimestamp() 
                 });
                 purchaseForm.reset();
                 setInitialFormValues();
@@ -663,20 +621,18 @@
                 return displayError("Please enter valid job usage details.");
             }
             
-            // Check if there's any stock available at all
             const totalRemaining = purchases.reduce((sum, p) => sum + p.remainingBags, 0);
             if (bagsUsed > totalRemaining) {
                  alertModal.show("Stock Warning", `Cannot use ${bagsUsed} bags. Only ${totalRemaining} bags are currently in stock.`, 'warning');
                  return;
             }
 
-            // Execute the FIFO deduction and job logging
             await processJobDeduction(bagsUsed, dateString);
             jobForm.reset();
             setInitialFormValues();
         });
 
-        // --- Custom Alert Modal (No window.alert/confirm) ---
+        // --- Custom Alert Modal (Remains the same) ---
 
         const alertModal = (function() {
             const modalHtml = `
@@ -723,7 +679,7 @@
         // --- Start Application ---
         window.onload = () => {
             initFirebase();
-            setInitialFormValues(); // Set the dates immediately when the page loads
+            setInitialFormValues(); 
         };
 
     </script>
